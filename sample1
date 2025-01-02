@@ -1,0 +1,16 @@
+program factorial
+
+// idea: initialize a variable with a value in the procedure signature as the output
+// e.g. proc fact: int n -> x = 1 {...
+// then, the following could be the return point of the function:
+// return
+// }
+// also this is the syntax for single-line comments
+
+proc fact: int n -> int {
+    x = 1
+    for i = n i > 0 i-- {
+        x *= i       
+    }   
+    return x
+}
