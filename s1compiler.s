@@ -6,7 +6,7 @@
 .set sp, ' '
 .set tb, '\t'
 .set dq, '"'
-
+.set fs, '\\'
 # Keywords
 program: .ascii "program" #7
 proc: .ascii "proc" #4
@@ -18,6 +18,7 @@ load: .ascii "load" #4
 err_message: .asciz "error reading\n" #17
 error_invalid_symbol_str: .asciz "invalid symbol or unexpected null char\n" #40
 error_program_str: .asciz "program shoud start with program keyword\n" #42
+error_parse_string: .asciz "expected string, but it must be enclosed into double quotes\n" #61
 temp: .ascii "program mamad\n" #5
 match: .asciz "match\n" #6
 .set buff_size, 4096
@@ -30,13 +31,13 @@ buffer: .skip buff_size
 
 # check for white spaces
 _white_space:
-	cmp $sp, %al
+	cmpb $sp, %al
 	je ws_ret
 
-	cmp $tb, %al 
+	cmpb $tb, %al 
 	je ws_ret
 
-	cmp $nl, %al
+	cmpb $nl, %al
 	je ws_ret
 
 	ret
@@ -58,10 +59,38 @@ _skip_white_space:
 		je sws_loop
 
 	ret
-
+# parse string TODO: figure out a way to escape characters.
 _parse_string:
 	cmpb $dq, %al
-		
+	jne error_parse_string
+
+	pstr_loop:
+		lodsb
+		# if you've found the second double qoute, we've got outselves a string!
+		cmpb $dq, %al
+		je pstr_done
+
+		cmpb $fs, %al
+		je pstr_skip_escape
+
+		#lodsb 
+		#cmpb $dq, %al
+		#jne 
+		#stosb
+		#stosw
+
+
+		jmp pstr_loop
+
+	pstr_done:
+		ret	
+	error_parse_string:
+		movq $1, %rax
+		movq $1, %rdi
+		leaq error_parse_string(%rip), %rsi
+		movq $61, %rdx
+		call _exit
+	
 
 # parses symbols. it'a equivalent to this regex: `[a-zA-Z][a-zA-Z0-9]*`. it uses range cheking
 _parse_symbol:
