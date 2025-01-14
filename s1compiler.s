@@ -1,5 +1,5 @@
-# Since this is the first (or even zeroth) form of the compiler for a subset of the language
-# adhere to all compiler implementation, since doing so in assembly would be cumbersome and ineficient.
+# Since this is the first (or even zeroth) form of the compiler for a subset of the language, it does not
+# adhere to all compiler implementation best practices, since doing so in assembly would be cumbersome and ineficient.
 # as an example of that, the the syntax and semantics analyzers are tightly coupled, which is not recommended practice.
 .section .data 
 .set nl, '\n'
@@ -7,26 +7,34 @@
 .set tb, '\t'
 .set dq, '"'
 .set fs, '\\'
+.set buff_size, 4096
+
 # Keywords
 program: .ascii "program" #7
-proc: .ascii "proc" #4
-if:   .ascii "if" #2
-for:  .ascii "for" #3
-load: .ascii "load" #4
-# end of Keywords
+inline:  .ascii "inline" #6
+proc: 	 .ascii "proc" #4
+load: 	 .ascii "load" #4
+ret: 	 .ascii "ret" #3
+for: 	 .ascii "for" #3
+var: 	 .ascii "var" #3
+if: 	 .ascii "if" #2
 
-err_message: .asciz "error reading\n" #17
+# end of Keywords
+# symbol table form: name | type
+error_program_str: 		  .asciz "program shoud start with program keyword\n" #42
 error_invalid_symbol_str: .asciz "invalid symbol or unexpected null char\n" #40
-error_program_str: .asciz "program shoud start with program keyword\n" #42
-error_parse_string: .asciz "expected string, but it must be enclosed into double quotes\n" #61
-temp: .ascii "program mamad\n" #5
+
+temp:  .ascii "program mamad\n" #5
 match: .asciz "match\n" #6
-.set buff_size, 4096
 
 .section .bss
 buffer: .skip buff_size
 
 .text 
+.extern _create_symbol_table
+.extern _destroy_symbol_table
+.extern _update_symbol_table
+.extern _exit
 .global _start
 
 # check for white spaces
@@ -60,36 +68,6 @@ _skip_white_space:
 
 	ret
 # parse string TODO: figure out a way to escape characters.
-_parse_string:
-	cmpb $dq, %al
-	jne error_parse_string
-
-	pstr_loop:
-		lodsb
-		# if you've found the second double qoute, we've got outselves a string!
-		cmpb $dq, %al
-		je pstr_done
-
-		cmpb $fs, %al
-		je pstr_skip_escape
-
-		#lodsb 
-		#cmpb $dq, %al
-		#jne 
-		#stosb
-		#stosw
-
-
-		jmp pstr_loop
-
-	pstr_done:
-		ret	
-	error_parse_string:
-		movq $1, %rax
-		movq $1, %rdi
-		leaq error_parse_string(%rip), %rsi
-		movq $61, %rdx
-		call _exit
 	
 
 # parses symbols. it'a equivalent to this regex: `[a-zA-Z][a-zA-Z0-9]*`. it uses range cheking
@@ -97,7 +75,7 @@ _parse_symbol:
 	pushq %rbp
 	movq %rsp, %rbp
 	pushq %rbx
-	
+
 	first_part:
 		cmpb $'A', %al
 		jb error_invalid_symbol
@@ -142,13 +120,13 @@ _parse_symbol:
 		popq %rbx 
 		movq %rbp, %rsp
 		popq %rbp
-		
+
 		movq $1, %rax
 		movq $1, %rdi
 		leaq match(%rip), %rsi
 		movq $7, %rdx
 		syscall
-		
+	
 		ret
 	error_invalid_symbol:
 		movq $1, %rax
@@ -243,11 +221,6 @@ _parse_program:
 #	movq $14, %rdx
 #	ret
 #	
-_exit:
-	movq $60, %rax
-	movq $0, %rdi
-	syscall
-
 _start:
 	#cmpq $2, (%rsp)
 	#jl _exit

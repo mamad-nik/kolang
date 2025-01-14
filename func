@@ -1,0 +1,2 @@
+idea: single instruction functions which use registers as input and output
+func name: int x -> int y( /* single instruction */)
