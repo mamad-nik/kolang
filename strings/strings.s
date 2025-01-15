@@ -11,6 +11,7 @@ error_validate_string_str:   .asciz "expected string, but it must be enclosed in
 .section .text
 .extern _exit
 .global _create_string
+.global _delete_string
 
 _validate_string:
 	cmpb $dq, %al
@@ -92,3 +93,8 @@ _create_string:
 		movq $1, %rdi
 		syscall
 		ret
+_delete_string:
+	movq %rax, %rdi
+	movq $11, %rax
+	movq $total_length
+	syscall
