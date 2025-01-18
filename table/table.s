@@ -1,11 +1,13 @@
 .section .data
-FNV_OFFSET_BASIS: .quad 14695981039346656037
-FNV_PRIME: .quad 1099511628211
+FNV_OFFSET_BASIS: .long 2166136261
+FNV_PRIME: .long 16777619 
 
 .section .text
 .global _hash
 
 _hash:
+	pushq %rbp
+	movq %rsp, %rbp
 	pushq %rbx
 	movq %rax, %rsi
 	movq $FNV_OFFSET_BASIS, %rax
@@ -23,4 +25,6 @@ loop:
 
 done: 
 	popq %rbx
+	movq %rbp, %rsp
+	popq %rbp
 	ret

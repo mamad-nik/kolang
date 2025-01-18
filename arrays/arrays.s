@@ -19,7 +19,7 @@ _create_array:
 	movq $0x3, %rdx 
 	movq $0x22, %r10 
 	xorq %r8, %r8 
-	decq %r8
+	decq %r8 
 	xorq %r9, %r9
 	syscall
 
