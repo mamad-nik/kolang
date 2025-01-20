@@ -18,10 +18,9 @@ ret: 	 .ascii "ret" #3
 for: 	 .ascii "for" #3
 var: 	 .ascii "var" #3
 if: 	 .ascii "if" #2
-
 # end of Keywords
 # symbol table form: name | type
-error_program_str: 		  .asciz "program shoud start with program keyword\n" #42
+error_program_str: 		  .asciz "program shoud start with the program keyword\n" #46
 error_invalid_symbol_str: .asciz "invalid symbol or unexpected null char\n" #40
 
 temp:  .ascii "program mamad\n" #5
@@ -29,12 +28,13 @@ match: .asciz "match\n" #6
 
 .section .bss
 buffer: .skip buff_size
-
+program_name: .fill 64
 .text 
 .extern _create_symbol_table
 .extern _destroy_symbol_table
 .extern _update_symbol_table
 .extern _exit
+.extern _skip_white_space
 .global _start
 
 # check for white spaces
@@ -54,19 +54,6 @@ _white_space:
 	ret
 	
 # skip white spaces (it is actually more efficient to rewrite the code instead of calling the fuction above)
-_skip_white_space:
-	sws_loop:
-		lodsb
-		cmpb $sp, %al
-		je sws_loop
-
-		cmpb $tb, %al 
-		je sws_loop
-
-		cmpb $nl, %al
-		je sws_loop
-
-	ret
 # parse string TODO: figure out a way to escape characters.
 	
 
@@ -91,7 +78,7 @@ _parse_symbol:
 		
 	second_part:
 		ps_sp_loop:
-			#stosb 
+			stosb 
 			lodsb
 			cmpq $0, %rax
 			je error_invalid_symbol
@@ -117,6 +104,7 @@ _parse_symbol:
 
 
 	symbol_match:
+		movq $0, (%rdi)
 		popq %rbx 
 		movq %rbp, %rsp
 		popq %rbp
@@ -146,20 +134,19 @@ _parse_program:
 	leaq program(%rip), %rbx
 	# since program is 7 letters long
 	movq $7, %rcx
-	
 	# check if the char is as expected.
 	pp_loop:
 		lodsb
 		cmpb (%rbx), %al
 		# if not, the program does not abide syntax rules and an error is generated.
 		jne error_program
-
 		inc %rbx
 		loop pp_loop
 	
 	# skip the white spaces in between the keyword and the given name.
 	call _skip_white_space
 	# now check for the symbol.
+	leaq program_name(%rip), %rdi
 	call _parse_symbol
 
 	popq %rbx
@@ -171,7 +158,7 @@ _parse_program:
 		movq $1, %rax
 		movq $1, %rdi
 		leaq error_program_str(%rip), %rsi
-		movq $42, %rdx
+		movq $46, %rdx
 		syscall
 
 		call _exit
@@ -224,7 +211,6 @@ _parse_program:
 _start:
 	#cmpq $2, (%rsp)
 	#jl _exit
-	leaq buffer(%rip), %rdi
 	leaq temp(%rip), %rsi
 	call _parse_program
 

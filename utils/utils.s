@@ -1,7 +1,12 @@
+.section .data
+.set nl, '\n'
+.set sp, ' '
+.set tb, '\t'
 .section .text
 .global _exit
 .global _err_exit
 .global _integer_to_ascii
+.global _skip_white_space
 _exit:
 	movq $60, %rax
 	movq $0, %rdi
@@ -17,6 +22,19 @@ _err_exit:
 	movq $1, %rdi
 	syscall
 
+_skip_white_space:
+	sws_loop:
+		lodsb
+		cmpb $sp, %al
+		je sws_loop
+
+		cmpb $tb, %al 
+		je sws_loop
+
+		cmpb $nl, %al
+		je sws_loop
+
+	ret
 
 # BEWARE: prints gibberish unless given integer number
 _integer_to_ascii:
