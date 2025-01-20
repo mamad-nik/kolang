@@ -22,6 +22,7 @@ if: 	 .ascii "if" #2
 # symbol table form: name | type
 error_program_str: 		  .asciz "program shoud start with the program keyword\n" #46
 error_invalid_symbol_str: .asciz "invalid symbol or unexpected null char\n" #40
+_error_create_file_str: .asciz "error calling openat(), retry\n" #31
 
 temp:  .ascii "program mamad\n" #5
 match: .asciz "match\n" #6
@@ -34,6 +35,7 @@ program_name: .fill 64
 .extern _destroy_symbol_table
 .extern _update_symbol_table
 .extern _exit
+.extern _err_exit
 .extern _skip_white_space
 .global _start
 
@@ -167,6 +169,25 @@ _parse_program:
 #_parse:
 
 
+_create_file:
+	movq $257, %rax
+	movq $-100, %rdi
+	leaq program_name(%rip), %rsi
+	movq $0x41, %rdx
+	movq $0444, %r10
+	syscall
+
+	cmpq $0, %rax
+	jl _error_create_file
+	ret
+	_error_create_file:
+		movq $1, %rax
+		movq $1, %rdi
+		movq _error_create_file_str(%rip), %rdi
+		movq $31 , %rdx
+		syscall
+
+		call _err_exit
 #_open_file:
 #	# Get the pointer to the filename as an argument
 #	movq 24(%rsp), %rdi
