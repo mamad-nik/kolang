@@ -39,7 +39,7 @@ _resolve_type:
 	movq %rsp, %rbp
 	pushq %rbx
 	cmpq noftypes(%rip), %rax
-	jg invalid_type
+	jge invalid_type
 	leaq type_size(%rip), %rbx
 	movb (%rbx, %rax), %al
 	popq %rbx

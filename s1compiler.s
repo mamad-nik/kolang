@@ -7,10 +7,14 @@
 .set tb, '\t'
 .set dq, '"'
 .set fs, '\\'
+.set op, '('
+.set cp, ')'
 .set buff_size, 4096
+.set AT_FDCWD, -100
 
 # Keywords
 program: .ascii "program" #7
+import:  .ascii "import" #6
 inline:  .ascii "inline" #6
 proc: 	 .ascii "proc" #4
 load: 	 .ascii "load" #4
@@ -20,15 +24,23 @@ var: 	 .ascii "var" #3
 if: 	 .ascii "if" #2
 # end of Keywords
 # symbol table form: name | type
+# error messages
 error_program_str: 		  .asciz "program shoud start with the program keyword\n" #46
 error_invalid_symbol_str: .asciz "invalid symbol or unexpected null char\n" #40
-_error_create_file_str: .asciz "error calling openat(), retry\n" #31
-
+error_create_file_str: .asciz "error calling openat(), retry\n" #31
+error_parse_imports_str: .asciz "error parsing imports" #22
+error_missing_par_str: .asciz "error missing par after import" #31
+parse_var_error_str: .asciz "all variables must start with var keyword" #38
 temp:  .ascii "program mamad\n" #5
 match: .asciz "match\n" #6
+#offsets
+bssoffset: .quad 0
+dataoffset: .quad 0
+textoffset: .quad 0
 
 .section .bss
 buffer: .skip buff_size
+
 program_name: .fill 64
 .text 
 .extern _create_symbol_table
@@ -37,6 +49,8 @@ program_name: .fill 64
 .extern _exit
 .extern _err_exit
 .extern _skip_white_space
+.extern _create_string
+
 .global _start
 
 # check for white spaces
@@ -126,7 +140,31 @@ _parse_symbol:
 		syscall
 
 		call _exit
+_parse_var:
+	pushq %rbp
+	movq %rsp, %rbp
+	pushq %rbx
 
+	leaq var(%rip), %rbx
+	movq $3, %rcx
+	pv_loop:	
+		cmpb (%rbx), %al
+		jne parse_var_error
+		lodsb
+		incq %rbx
+		loop
+	call _skip_white_space
+	#expects rdi to be pointing to a place to save variable name
+	call _parse_symbol
+	#TODO: implement a type selector and continue with this function	
+	popq %rbx
+	movq %rbp, %rsp
+	popq %rbp
+	ret
+	parse_var_error:
+		leaq parse_var_error_str(%rip), %rax
+		movq $38, %rdi
+		call _err_exit
 # it is used to parse the keyword "program"	and its binded name. TODO: add the name to the global table.
 _parse_program:
 	pushq %rbp
@@ -157,21 +195,50 @@ _parse_program:
 	ret
 
 	error_program:
-		movq $1, %rax
-		movq $1, %rdi
-		leaq error_program_str(%rip), %rsi
-		movq $46, %rdx
-		syscall
-
-		call _exit
+		leaq error_program_str(%rip), %rax
+		movq $46, %rdi
+		call _err_exit
 		
 
-#_parse:
+_parse_imports:
+	pushq %rbp
+	movq %rsp, %rbp
+	pushq %rbx
+	
+	leaq import(%rip), %rbx
+	movq $6, %rcx
+	pi_imp_loop:
+		cmpb (%rbx), %al
+		jne error_parse_imports
+		lodsb
+		incq %rbx
+		loop pi_imp_loop
+	cmpb $op, %al 
+	jne error_missing_par
 
+	pi_vars_loop:
+	cmpb $cp, %al
+	je parse_imports_done
+	call _create_string
+
+	cmpb $cp, %al 
+	jne error_missing_par
+	parse_imports_done:
+		popq %rbx
+		movq %rbp, %rsp
+		popq %rbp
+	error_parse_imports:
+		movq error_parse_imports_str(%rip), %rax
+		movq $22, %rdi
+		call _err_exit
+	error_missing_par:
+		movq error_missing_par_str(%rip), %rax
+		movq $31, %rdi
+		call _err_exit
 
 _create_file:
 	movq $257, %rax
-	movq $-100, %rdi
+	movq $AT_FDCWD, %rdi
 	leaq program_name(%rip), %rsi
 	movq $0x41, %rdx
 	movq $0444, %r10
@@ -181,13 +248,13 @@ _create_file:
 	jl _error_create_file
 	ret
 	_error_create_file:
-		movq $1, %rax
-		movq $1, %rdi
-		movq _error_create_file_str(%rip), %rdi
-		movq $31 , %rdx
-		syscall
-
+		movq error_create_file_str(%rip), %rax
+		movq $31 , %rdi
 		call _err_exit
+_close_file:
+	movq %rax, %rdi
+	movq $3, %rax
+	syscall	
 #_open_file:
 #	# Get the pointer to the filename as an argument
 #	movq 24(%rsp), %rdi
@@ -235,5 +302,6 @@ _start:
 	leaq temp(%rip), %rsi
 	call _parse_program
 
+	call _create_file
 	call _exit
 

@@ -25,7 +25,7 @@ _destroy_symbol_table:
 _update_symbol_table:
 	decq %rax
 	movq %rax, %rdi
-	movq $19, %rax
+	movq $0x19, %rax
 	movq (%rdi), %rsi
 	movq %rsi, %rdx
 	shlq $1, %rdx
