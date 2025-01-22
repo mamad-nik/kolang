@@ -7,11 +7,12 @@
 mmap_err_string: .asciz "mmap error" #11
 long_string_err: .asciz "string too long" #16
 error_validate_string_str:   .asciz "expected string, but it must be enclosed into double quotes\n" #61
-
+error_delete_string_str: .asciz "error deleting string, munmap"#30
 .section .text
-.extern _exit
+.extern _err_exit
 .global _create_string
 .global _delete_string
+.global _validate_string
 
 _validate_string:
 	cmpb $dq, %al
@@ -26,22 +27,18 @@ _validate_string:
 		stosb
 		loop pstr_loop
 		
-	movq $1, %rax
-	movq $1, %rdi
-	leaq long_string_err(%rip), %rsi
-	movq $16, %rdx
-	call _exit
+	leaq long_string_err(%rip), %rax
+	movq $16, %rdi
+	call _err_exit
 	
 	pstr_done:
 		movq $max_length, %rax
 		subq %rcx, %rax
 		ret	
 	error_validate_string:
-		movq $1, %rax
-		movq $1, %rdi
-		leaq error_validate_string_str(%rip), %rsi
-		movq $6, %rdx
-		call _exit
+		leaq error_validate_string_str(%rip), %rax
+		movq $61, %rdi
+		call _err_exit
 	
 _create_string:
 	pushq %rbp
@@ -83,18 +80,18 @@ _create_string:
 	ret
 	
 	mmap_error:
-		movq $1, %rax
-		movq $1, %rdi
-		movq $mmap_err_string, %rsi
-		movq $11, %rdx
-		syscall
-		#replace with _exit
-		movq $60, %rax
-		movq $1, %rdi
-		syscall
-		ret
+		movq $mmap_err_string, %rax
+		movq $11, %rdi
+		call _validate_string
 _delete_string:
 	movq %rax, %rdi
 	movq $11, %rax
 	movq $total_length
 	syscall
+	cmpq $0, %rax
+	jl error_delete_string
+	ret
+	error_delete_string:
+	leaq error_delete_string_str(%rip), %rax
+	movq $30, %rdi
+	call _err_exit
