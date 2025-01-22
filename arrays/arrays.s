@@ -105,7 +105,53 @@ _resize_array:
 _add_to_array:
 	pushq %rbp
 	movq %rsp, %rbp	
+	pushq %r12
+	pushq %rbx
 	pushq %rax
+	
+	movq (%rax), %rbx
+	movq 8(%rbx), %r12
+	movq 24(%rbx), %rax
+	mulq %r12
+	cmpq 16(%rbx), %rax
+	jl add_to_array_continue
 	popq %rax
+	pushq %rdi
+	call _resize_array
+	popq %rdi
+	pushq %rax
+	movq (%rax), %rbx
+	add_to_array_continue:
+	movq 24(%rbx), %r12
+	movq 8(%rbx), %rax
+	cmpq $1, %rax
+	je add_to_array_byte
+	cmpq $2, %rax
+	je add_to_array_word
+	cmpq $4, %rax
+	je add_to_array_long
+	cmpq $8, %rax
+	je add_to_array_quad
+
+	add_to_array_byte:
+	movb %dil, header_size(%rbx, %r12)
+	jmp	add_to_array_done
+	add_to_array_word:
+	movw %di, header_size(%rbx, %r12)
+	jmp	add_to_array_done
+	add_to_array_long:
+	movl %edi, header_size(%rbx, %r12)
+	jmp	add_to_array_done
+	add_to_array_quad:
+	movq %rdi, header_size(%rbx, %r12)
+	add_to_array_done:
+	incq 24(%rbx)
+	popq %rax
+	popq %r12
 	movq %rbp, %rsp
 	popq %rbp
+	ret
+
+
+
+

@@ -5,7 +5,7 @@
 .set uint, 4
 .set float, 5
 .set string, 6
-inv_type_str: .asciz "undefined type number"#22
+inv_type_str: .asciz "undefined type number\n"#23
 noftypes: .quad 6
 type_size: 
 	.byte 1, 1, 8, 8, 4, 8
@@ -39,14 +39,14 @@ _resolve_type:
 	movq %rsp, %rbp
 	pushq %rbx
 	cmpq noftypes(%rip), %rax
-	jge invalid_type
+	jg invalid_type
 	leaq type_size(%rip), %rbx
-	movb (%rbx, %rax), %al
+	movb -1(%rbx, %rax), %al
 	popq %rbx
 	movq %rbp, %rsp
 	popq %rbp
 	ret
 	invalid_type:
-	movq inv_type_str(%rip), %rax
+	leaq inv_type_str(%rip), %rax
 	movq $22, %rdi
 	call _err_exit
