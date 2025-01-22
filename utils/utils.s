@@ -7,6 +7,7 @@
 .global _err_exit
 .global _integer_to_ascii
 .global _skip_white_space
+.global _white_space
 _exit:
 	movq $60, %rax
 	movq $0, %rdi
@@ -21,6 +22,21 @@ _err_exit:
 	movq $60, %rax
 	movq $1, %rdi
 	syscall
+
+_white_space:
+	cmpb $sp, %al
+	je ws_ret
+
+	cmpb $tb, %al 
+	je ws_ret
+
+	cmpb $nl, %al
+	je ws_ret
+
+	ret
+	ws_ret:
+	xorq %rax, %rax
+	ret
 
 _skip_white_space:
 	sws_loop:

@@ -50,24 +50,10 @@ program_name: .fill 64
 .extern _err_exit
 .extern _skip_white_space
 .extern _create_string
-
+.extern _white_space
 .global _start
 
 # check for white spaces
-_white_space:
-	cmpb $sp, %al
-	je ws_ret
-
-	cmpb $tb, %al 
-	je ws_ret
-
-	cmpb $nl, %al
-	je ws_ret
-
-	ret
-	ws_ret:
-	xorq %rax, %rax
-	ret
 	
 # skip white spaces (it is actually more efficient to rewrite the code instead of calling the fuction above)
 # parse string TODO: figure out a way to escape characters.
@@ -152,7 +138,7 @@ _parse_var:
 		jne parse_var_error
 		lodsb
 		incq %rbx
-		loop
+		loop pv_loop
 	call _skip_white_space
 	#expects rdi to be pointing to a place to save variable name
 	call _parse_symbol
