@@ -2,6 +2,7 @@
 .set nl, '\n'
 .set sp, ' '
 .set tb, '\t'
+neg: .quad 0
 .section .text
 .global _exit
 .global _err_exit
@@ -62,8 +63,7 @@ _integer_to_ascii:
 
 	cmpq $0, %rax
 	jge itoa_zero
-	movb $'-', (%rdi)
-	incq %rdi
+	movq $1, neg(%rip)
 	negq %rax
 
 	itoa_zero:
@@ -85,6 +85,11 @@ _integer_to_ascii:
 	jmp itoa_loop	
 
 	itoa_reverse:
+	cmpb $1, neg(%rip)
+	jne itoa_re_cont
+	movb $'-', (%rdi)
+	incq %rdi
+	itoa_re_cont:
 	pushq %rbx
 	pushq %rdi
 	decq %rdi

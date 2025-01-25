@@ -7,8 +7,8 @@ signed_overflow_str: .asciz "too big an integer"#19
 .section .text
 .extern _err_exit
 .extern _white_space
-.global _parse_integer
-_parse_integer:
+.global _ascii_to_integer
+_ascii_to_integer:
 	pushq %rbp
 	movq %rsp, %rbp
 	pushq %rbx
@@ -21,15 +21,10 @@ _parse_integer:
 	incb negative(%rip)
 	lodsb
 	parse_integer_loop:
-	movb %al, %r12b	
-	call _white_space
-	testq %rax, %rax
-	jz parse_integer_negative
-	movb %r12b, %al
 	cmpb $48, %al
-	jl error_invalid_integer
+	jl parse_integer_negative
 	cmpb $57, %al
-	jg error_invalid_integer
+	jg parse_integer_negative
 
 	subb $48, %al	
 	movb %al, %r12b
@@ -62,12 +57,3 @@ _parse_integer:
 	leaq signed_overflow_str(%rip), %rax
 	movq $19, %rdi
 	call _err_exit
-
-#_ascii_to_integer:
-#	pushq %rbp
-#	movq %rsp, %rbp
-#	pushq %rbx
-#	popq %rbx
-#	movq %rbp, %rsp
-#	popq %rbp
-#	ret
