@@ -52,13 +52,6 @@ program_name: .fill 64
 .extern _create_string
 .extern _white_space
 .global _start
-
-# check for white spaces
-	
-# skip white spaces (it is actually more efficient to rewrite the code instead of calling the fuction above)
-# parse string TODO: figure out a way to escape characters.
-	
-
 # parses symbols. it'a equivalent to this regex: `[a-zA-Z][a-zA-Z0-9]*`. it uses range cheking
 _parse_symbol:
 	pushq %rbp
