@@ -5,11 +5,17 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "tokens.h"
+#include "../tokens/tokens.h"
+#include "../table/table.h"
+#include "../symbol_table/symbol_table.h"
+
+int line_no = 1;
+Stream *stream;
 
 void skip_white_space(char **ptr) {
     char *la = *ptr;
     while(*la == ' ' || *la == '\t' || *la == '\n') { 
+        if (*la == '\n') line_no++;
         la++;
     }
     *ptr = la;
@@ -150,7 +156,6 @@ char* lex_byte(char *input, char* val) {
     return input;
 }
 
-
 char* lex_bool(char* str, int* val){
     char* fptr = str;  
     int match;
@@ -173,49 +178,86 @@ char* lex_bool(char* str, int* val){
     }
     return NULL;
 }
+int inst_token(char* fptr, char* sptr, Token* token, keywords id) {
+    char* str = strndup(sptr - fptr, fptr);
+    if (str == NULL) {
+        return 0;
+    }
+    token->id = id;
+    token->loc = fptr;
+    token->str = str;
+    stream = add_to_stream(stream, token);
+    if (stream == NULL) return 0;
+    return 1;
+}
 
-int pattern_match(char* str) {
+int pattern_match(char*  str, Token* token, Table* table, Stream* stream) {
     char byteval = 'a';
     char* sptr;
     sptr = lex_byte(str, &byteval);
     if (sptr) {
-        return BYTE_VAL;
+        if (!inst_token(str, sptr, token, BYTE_VAL)) return NULL;
+        return sptr;
     } 
     int intval = 0;
     sptr = lex_integer(str, &intval);
     if (sptr) {
-        return INTEGER_VAL;
+        if (!inst_token(str, sptr, token, INTEGER_VAL)) return NULL;
+        return sptr;
     }
     sptr = lex_bool(str, &intval);
     if (sptr) {
-        return BOOL_VAL;
+        if (!inst_token(str, sptr, token, BOOL_VAL)) return NULL;
+        return sptr;
     }
     double floatval = 0;
     sptr = lex_float(str, &floatval);
     if (sptr) {
-        return FLOAT_VAL;
+        if (!inst_token(str, sptr, token, FLOAT_VAL)) return NULL;
+        return sptr;
     }
     sptr = lex_string(str, &intval);
     if(sptr) {
-        return STR_VAL;
+        if (!inst_token(str, sptr, token, STR_VAL) return NULL;
+        return sptr;
     }
     sptr = lex_symbol(str);
     if(sptr) {
-        return SYMBOL;
+        char* name = strndup(sptr - str, str);
+        if (name == NULL) {
+            return 0;
+        }
+        if (look_up_entry(table, name) != NULL) {
+            Symbol* symbol = malloc(sizeof(Symbol));
+            if (symbol == NULL) return NULL;
+            symbol->name = name;
+            symbol->loc = str;
+            symbol->type = NO_TYPE;
+            memset(&symbol->value, 0, sizeof(symbol->value));
+            if (!insert_entry(table, symbol->name, symbol)) return NULL;
+        }
+        if (!inst_token(str, sptr, token, SYMBOL) return NULL;
+        return sptr;
     }
-    return -1;
+    return NULL;
 }
+
 
 int lex(char **input) {
     char *fptr = *input;
     char *sptr = fptr;
+    stream = init_stream();
+    if (stream == NULL) return 0;
+    Table* symbol_table = create_table();
+    if (symbol_table == NULL) return 0;
     while(*fptr) {
         int keyword_match = 0;
         skip_white_space(&fptr);
+        Token* token = malloc(sizeof(Token));
         for(int i = 0; i < tokens_num; i++) {
-            if (tokens[i].name[0] == *fptr) {
+            if (token_types[i].name[0] == *fptr) {
                 sptr = &fptr[1];
-                char* tptr = &tokens[i].name[1];
+                char* tptr = &token_types[i].name[1];
                 int match = 1;
                 while(*tptr) {
                     if (*tptr != *sptr) {
@@ -226,22 +268,23 @@ int lex(char **input) {
                     sptr++;
                 }                
                 if (match) if (match_del(*sptr)) {
+                    inst_token(fptr, sptr, token, i);
                     keyword_match = 1;
                     fptr = sptr;
-                    printf("%s, %d\n", tokens[i].name, tokens[i].id);
+                    printf("%s, %d\n", token_types[i].name, token_types[i].id);
                     break;
                 }
             }
         }
         if (!keyword_match) {
-
+            sptr = fptr;
+            sptr = pattern_match(&sptr, token, symbol_table);
+            if (sptr == NULL) return 0;
+            fptr = sptr;
         }
-
-
     }
+    return 1;
 }
 int main() {
-    char *str = "\'m\'";
-    if (int i = pattern_match(str)) printf("%d, %s\n", i, str);
     return 0;
 }
