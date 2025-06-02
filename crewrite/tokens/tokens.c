@@ -22,7 +22,14 @@ const Token_type token_types[] = {
     {"-", MINUS},
     {"*", TIMES},
     {"/", DIVIDE},
-    {"=", ASSIGN}
+    {"=", ASSIGN},
+    {"(", OPEN_PAR},
+    {")", CLOSE_PAR},
+    {"[", OPEN_BRAC},
+    {"]", CLOSE_BRAC},
+    {"{", OPEN_CURL},
+    {"}", CLOSE_CURL},
+    {";", SEMI_COL}
 };
 const int tokens_num = sizeof(token_types) / sizeof(token_types[0]);
 

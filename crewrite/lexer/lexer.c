@@ -1,16 +1,5 @@
-#include <stdio.h>
-#include <fcntl.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include "../tokens/tokens.h"
-#include "../table/table.h"
-#include "../symbol_table/symbol_table.h"
-
 int line_no = 1;
-Stream *stream;
+char* curr_lexem;
 
 void skip_white_space(char **ptr) {
     char *la = *ptr;
@@ -22,48 +11,42 @@ void skip_white_space(char **ptr) {
 }
 int match_del(char ch) {
     if (ch == ' ' || ch == '\t' || ch == EOF || ch == '\n' || ch == '(' || ch == '{' || ch == '[' || ch == ')'
-            || ch == '}' || ch == ']' || ch == '\0') return 1;
+            || ch == '}' || ch == ']' || ch == '\0' || ch == ';' || ch == '+' || ch == '-' || ch == '=') return 1;
     return 0;
 }
 
-char* lex_symbol(char *sym){ 
-    if (!sym) {
-        fprintf(stderr, "empty symbol\n");
-        return NULL;
-    }
+char* lex_symbol(char *beg){ 
+    char * sym = beg;
+    if (!sym) return NULL;
     if (((*sym < 'A') || (*sym > 'Z')) && ((*sym < 'a') || ( *sym > 'z'))) {
-        fprintf(stderr, "invalid symbol\n", sym);
         return NULL;
     }
     sym++;
     if (match_del(*sym)) return sym;
     while (*sym) {
         if (((*sym < '0') || (*sym > '9')) && ((*sym < 'A') || (*sym > 'Z')) && ((*sym < 'a') || ( *sym > 'z')) && *sym != '_') {
-            fprintf(stderr, "invalid symbol\n", sym);
             return NULL;
         }
         sym++;
-        if (match_del(*sym)) return sym;
+        if (match_del(*sym)) 
+            if (curr_lexem != NULL) {
+                char* tmp= strndup(beg, sym-beg);
+                if (strcmp(curr_lexem, tmp) != 0) return sym;
+                return NULL;
+            }
     }
     return NULL;
 }
 char *lex_integer(char *sym, int* value){
     *value = 0;
     int neg;
-    if (!sym) {
-        fprintf(stderr, "empty integer\n");
-        return NULL;
-    }
+    if (!sym) return NULL;
     if (*sym == '+' || *sym == '-') {
         if (*sym == '-') neg = 1;
         sym++;
     }
     while (*sym) {
-        if (*sym > '9' || *sym < '0'){
-            printf("%c\n", *sym);
-            fprintf(stderr, "invalid integer\n");
-            return NULL;
-        }
+        if (*sym > '9' || *sym < '0') return NULL;
         *value *= 10;
         *value += *sym - '0';
         sym++;
@@ -78,18 +61,13 @@ char *lex_integer(char *sym, int* value){
 char *lex_float(char *sym, double* value) {
    *value = 0;
    int neg; 
-   if (!sym) {
-        fprintf(stderr, "empty float\n");
-        return NULL;
-   }
+   if (!sym) return NULL;
    if (*sym == '+' || *sym == '-') {
        if (*sym == '-') neg = 1;
        sym++;
    }
     while (*sym) {
         if (*sym > '9' || *sym < '0'){
-            printf("%c\n", *sym);
-            fprintf(stderr, "invalid float\n");
             return NULL;
         }
         *value *= 10;
@@ -105,8 +83,6 @@ char *lex_float(char *sym, double* value) {
         sym++;
         while(*sym) {
             if (*sym > '9' || *sym < '0'){
-                printf("%c\n", *sym);
-                fprintf(stderr, "invalid float\n");
                 return NULL;
             }
             temp += (*sym  - '0') * i;
@@ -138,7 +114,7 @@ char *lex_string(char *input, int *len) {
                }
            }
            if (!*ptr) {
-               printf("expected closing \"");
+               fprintf(stderr, "expected closing \"");
                return NULL;
            }
        }
@@ -179,7 +155,7 @@ char* lex_bool(char* str, int* val){
     return NULL;
 }
 int inst_token(char* fptr, char* sptr, Token* token, keywords id) {
-    char* str = strndup(sptr - fptr, fptr);
+    char* str = strndup(fptr, sptr - fptr);
     if (str == NULL) {
         return 0;
     }
@@ -191,7 +167,7 @@ int inst_token(char* fptr, char* sptr, Token* token, keywords id) {
     return 1;
 }
 
-int pattern_match(char*  str, Token* token, Table* table, Stream* stream) {
+char* pattern_match(char*  str, Token* token) {
     char byteval = 'a';
     char* sptr;
     sptr = lex_byte(str, &byteval);
@@ -218,40 +194,41 @@ int pattern_match(char*  str, Token* token, Table* table, Stream* stream) {
     }
     sptr = lex_string(str, &intval);
     if(sptr) {
-        if (!inst_token(str, sptr, token, STR_VAL) return NULL;
+        if (!inst_token(str, sptr, token, STR_VAL))  return NULL;
         return sptr;
     }
     sptr = lex_symbol(str);
     if(sptr) {
-        char* name = strndup(sptr - str, str);
+        char* name = strndup(str, sptr - str);
         if (name == NULL) {
             return 0;
         }
-        if (look_up_entry(table, name) != NULL) {
+        if (lookup_entry(symbol_table, name) == NULL) {
             Symbol* symbol = malloc(sizeof(Symbol));
             if (symbol == NULL) return NULL;
             symbol->name = name;
             symbol->loc = str;
             symbol->type = NO_TYPE;
             memset(&symbol->value, 0, sizeof(symbol->value));
-            if (!insert_entry(table, symbol->name, symbol)) return NULL;
+            if (!insert_entry(symbol_table, symbol->name, symbol)) return NULL;
         }
-        if (!inst_token(str, sptr, token, SYMBOL) return NULL;
+        if (!inst_token(str, sptr, token, SYMBOL))  return NULL;
         return sptr;
     }
     return NULL;
 }
 
-
 int lex(char **input) {
     char *fptr = *input;
     char *sptr = fptr;
+    char *kptr;
     stream = init_stream();
     if (stream == NULL) return 0;
-    Table* symbol_table = create_table();
+    symbol_table = create_table();
     if (symbol_table == NULL) return 0;
+    int keyword_id;
     while(*fptr) {
-        int keyword_match = 0;
+        keyword_id = -1;
         skip_white_space(&fptr);
         Token* token = malloc(sizeof(Token));
         for(int i = 0; i < tokens_num; i++) {
@@ -267,24 +244,30 @@ int lex(char **input) {
                     tptr++; 
                     sptr++;
                 }                
-                if (match) if (match_del(*sptr)) {
-                    inst_token(fptr, sptr, token, i);
-                    keyword_match = 1;
-                    fptr = sptr;
-                    printf("%s, %d\n", token_types[i].name, token_types[i].id);
+                if (match) {
+                    kptr = sptr;
+                    keyword_id = i;
+                    curr_lexem = token_types[i].name;
+                    //printf("%s, %d\n", token_types[i].name, token_types[i].id);
                     break;
                 }
             }
         }
-        if (!keyword_match) {
-            sptr = fptr;
-            sptr = pattern_match(&sptr, token, symbol_table);
-            if (sptr == NULL) return 0;
+        Token* patt_token = malloc(sizeof(Token));
+        sptr = fptr;
+        sptr = pattern_match(sptr, patt_token);
+        if (sptr == NULL) {
+            if(keyword_id == -1) {
+                *input = fptr;
+                return 0;
+            }
+            free(patt_token);
+            inst_token(fptr, kptr, token, keyword_id);
+            fptr = kptr;
+        } else {
+            free(token);
             fptr = sptr;
         }
     }
     return 1;
-}
-int main() {
-    return 0;
 }

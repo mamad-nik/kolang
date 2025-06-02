@@ -25,6 +25,14 @@ typedef enum  {
     TIMES,
     DIVIDE,
     ASSIGN,
+    OPEN_PAR,
+    CLOSE_PAR,
+    OPEN_BRAC,
+    CLOSE_BRAC,
+    OPEN_CURL,
+    CLOSE_CURL,
+    SEMI_COL,
+
 
     SYMBOL,
     INTEGER_VAL,
