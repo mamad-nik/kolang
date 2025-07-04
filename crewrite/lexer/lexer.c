@@ -1,3 +1,7 @@
+#include "lexer.h"
+
+Stream *stream;
+Table *symbol_table;
 int line_no = 1;
 char* curr_lexem;
 
@@ -208,8 +212,9 @@ char* pattern_match(char*  str, Token* token) {
             if (symbol == NULL) return NULL;
             symbol->name = name;
             symbol->loc = str;
-            symbol->type = NO_TYPE;
-            memset(&symbol->value, 0, sizeof(symbol->value));
+            symbol->type = "";
+            symbol->is_func = 0;
+            symbol->value = NULL;
             if (!insert_entry(symbol_table, symbol->name, symbol)) return NULL;
         }
         if (!inst_token(str, sptr, token, SYMBOL))  return NULL;

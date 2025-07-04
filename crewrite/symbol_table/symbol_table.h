@@ -6,14 +6,9 @@
 typedef struct {
     char* name;
     char* loc;
-    Type type;
-    union {
-        char byte_v;
-        int int_v;
-        int bool_v;
-        double float_v;
-        char* string_v;
-    } value;
+    char* type;
+    int is_func;
+    void* value;
 } Symbol;
 
 

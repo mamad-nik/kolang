@@ -1,0 +1,42 @@
+program ::= imports comps | comps ✔
+imports ::= { 'load''('{string_val}')'} ✔
+comps ::= top_defs {proc_def} | {proc_def} ✔
+top_defs ::= {top_def}
+top_def ::= gvar_def | type_def
+gvar_def ::= {var_def} ✔
+type_def ::= 'type' argument | 'type' symbol 'struct' '{' arguments '}'
+var_def ::= 'var' argument ✔
+pointer_def ::= 'pointer' argument 
+proc_def ::= 'proc' symbol(arguments) output '{' statements '}'✔
+if_stat ::= 'if' conditional '{' statements '}'✔
+for_stat ::= 'for' [var_def;] conditional[; symbol inc_dec] '{' statements '}'✔
+inc_dec ::= '++' | '--'✔
+assignment ::= place '=' all_val
+place ::= var_def | struct_access | array_access | pointer_def 
+
+conditional ::= or_expr ✔
+or_expr     ::= and_expr {'||' and_expr}✔
+and_expr    ::= unary_expr {'&&' unary_expr}✔
+unary_expr  ::= '!' unary_expr | primary✔
+primary     ::= b_value | '(' conditional ')'✔
+
+func_cal ::= symbol '(' arguments ')'✔
+
+statements ::= var_def | array_def | pointer_def 
+             | assignment | if_stat | for_stat | func_cal | 'return' all_val ✔
+arguments ::= { argument, } | argument✔
+argument ::= symbol type ✔
+
+all_val ::= arith_exp | b_val✔
+b_val ::= bool_exp | value✔
+value ::= bool_val | int_val | float_val 
+        | byte_val | str_val | struct_lit | symbol | func_cal ✔
+
+-- the following rules are left recursive but 
+-- since they don't break the code it could be ignored
+array_lit = '[' {array_lit_items} ']'
+array_lit_items = all_val  | array_lit_items ',' 
+array_def ::= var_def '[' int_val ']' = array_lit
+
+struct_lit = '{' {struct_lit} '}' 
+struct_lit_items = all_val |  symbol '=' all_val | struct_lit_items ',' 

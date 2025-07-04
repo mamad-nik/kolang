@@ -13,6 +13,8 @@ typedef enum  {
     STRING,
     FLOAT,
     BYTE,
+    STRUCT,
+    POINTER,
 
     EQ,
     GT,
@@ -32,6 +34,7 @@ typedef enum  {
     OPEN_CURL,
     CLOSE_CURL,
     SEMI_COL,
+    COMMA,
 
 
     SYMBOL,

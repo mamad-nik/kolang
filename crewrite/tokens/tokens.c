@@ -13,6 +13,8 @@ const Token_type token_types[] = {
     {"string", STRING},
     {"float", FLOAT},
     {"byte", BYTE},
+    {"struct", STRUCT}, 
+    {"pointer", POINTER},
     {"==", EQ},
     {">", GT},
     {"<", LT},
@@ -29,7 +31,8 @@ const Token_type token_types[] = {
     {"]", CLOSE_BRAC},
     {"{", OPEN_CURL},
     {"}", CLOSE_CURL},
-    {";", SEMI_COL}
+    {";", SEMI_COL}, 
+    {",", COMMA}
 };
 const int tokens_num = sizeof(token_types) / sizeof(token_types[0]);
 
@@ -65,6 +68,7 @@ Stream* add_to_stream(Stream* stream, Token* token) {
 }
 
 void destroy_stream(Stream* stream) {
+    if (stream == NULL) return NULL;
     for (size_t i = 0; i < stream->no_tokens; i++) free(stream->tokens[i]);
     free(stream->tokens);
     free(stream);

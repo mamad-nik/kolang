@@ -1,11 +1,14 @@
-#include<stdio.h>
+#include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "lexer/lexer.h"
+#include "parser/parser.h"
 
+/*
 int create_file(char* name) {
     int file = openat(AT_FDCWD, name,  O_RDWR | O_CREAT);     
     if (file < 0) {
@@ -62,12 +65,39 @@ int open_src(char* name) {
     }
     return file;
 }
-int main(int argc, char *argv[]) {
-    char *symbols[] = {"mamad", "Mamad", "_return", "8amad", "asdf8"};
-    size_t n = sizeof(symbols)/sizeof(symbols[0]);
-    for (int i = 0; i < n; i++) {
-        parse_symbol(symbols[i]); 
+*/
+int print_token(Token* token) {
+    if (token != NULL) printf("%d, %u, %s\n", token->id, token->loc, token->str);
+}
+int print_stream(Stream *stream) {
+    if(stream == NULL) return 0;
+    printf("---------printing stream---------\n");
+    for (size_t i = 0; i < stream->no_tokens; i++) print_token(stream->tokens[i]); 
+    printf("---------stream printed---------\n");
+}
+int print_symbol(Symbol *symbol) {
+    if(symbol != NULL) printf("%s, %u\n", symbol->name, symbol->loc);
+}
+int print_table(Table* table) {
+    if (table == NULL) return 0;
+    printf("---------printing table---------\n");
+    for(int i = 0; i < table->no_buckets; i++) {
+        Entry* entry = table->entries[i];
+        while(entry != NULL){
+            print_symbol((Symbol *)entry);
+            entry = entry->next;
+        }
     }
+    printf("---------table printed---------\n");
+}
+
+int main(int argc, char *argv[]) {
+    char* string = "var input = 5";
+    lex(&string);
+    print_stream(stream);
+    print_table(symbol_table);
+    printf("%d\n", parse(stream));
+    
     return 0;
 }
 
