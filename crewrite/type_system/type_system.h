@@ -13,6 +13,7 @@
 
 typedef struct {
     char* name;
+    char* underlying_type;
 } Type;
 
 typedef struct {

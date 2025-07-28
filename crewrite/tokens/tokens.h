@@ -29,5 +29,5 @@ void destroy_stream(Stream* stream);
 Stream* update_stream(Stream* stream);
 Stream* init_stream();
 Stream* add_to_stream(Stream* stream, Token* token);
-
+Stream* finilize_stream(Stream* stream, char* fptr);
 #endif

@@ -92,7 +92,7 @@ int print_table(Table* table) {
 }
 
 int main(int argc, char *argv[]) {
-    char* string = "var input = 5";
+    char* string = "load (\"mamad\")\n load (\"behnood\")\0";
     lex(&string);
     print_stream(stream);
     print_table(symbol_table);

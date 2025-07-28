@@ -1,42 +1,56 @@
-program ::= imports comps | comps ✔
+program ::= imports comps | comps 
 imports ::= { 'load''('{string_val}')'} ✔
-comps ::= top_defs {proc_def} | {proc_def} ✔
-top_defs ::= {top_def}
-top_def ::= gvar_def | type_def
-gvar_def ::= {var_def} ✔
-type_def ::= 'type' argument | 'type' symbol 'struct' '{' arguments '}'
-var_def ::= 'var' argument ✔
-pointer_def ::= 'pointer' argument 
-proc_def ::= 'proc' symbol(arguments) output '{' statements '}'✔
-if_stat ::= 'if' conditional '{' statements '}'✔
+comps ::= top_defs {proc_def} | {proc_def}✔ 
+top_defs ::= {top_def}✔
+top_def ::= gvar_def | type_def✔
+gvar_def ::= var_def✔
+type_def ::= 'type' argument ✔
+var_def ::= 'var' argument✔
+proc_def ::= 'proc' symbol(arguments) output '{' statements '}'
+if_stmt ::= 'if' conditional '{' statements '}' [ 'else' ( if_stmt | '{' statements '}' ) ]
 for_stat ::= 'for' [var_def;] conditional[; symbol inc_dec] '{' statements '}'✔
 inc_dec ::= '++' | '--'✔
-assignment ::= place '=' all_val
-place ::= var_def | struct_access | array_access | pointer_def 
+assignment ::= place '=' all_val✔
+place ::= var_def | struct_access | array_access | symbol | deref✔
 
-conditional ::= or_expr ✔
-or_expr     ::= and_expr {'||' and_expr}✔
-and_expr    ::= unary_expr {'&&' unary_expr}✔
-unary_expr  ::= '!' unary_expr | primary✔
-primary     ::= b_value | '(' conditional ')'✔
+deref ::= { value } symbol✔
+
+conditional ::= or_expr 
+or_expr     ::= and_expr {'||' and_expr}
+and_expr    ::= unary_expr {'&&' unary_expr}
+unary_expr  ::= '!' unary_expr | primary
+primary     ::= b_value | '(' conditional ')'
 
 func_cal ::= symbol '(' arguments ')'✔
 
 statements ::= var_def | array_def | pointer_def 
-             | assignment | if_stat | for_stat | func_cal | 'return' all_val ✔
-arguments ::= { argument, } | argument✔
-argument ::= symbol type ✔
+             | assignment | if_stat | for_stat | func_cal | inc_dec | 'return' all_val 
 
-all_val ::= arith_exp | b_val✔
-b_val ::= bool_exp | value✔
+arguments ::= { argument, } | argument 
+argument ::= symbol argument_pointer ✔
+argument_pointer ::= { 'pointer' } argument_types | argument_types✔
+argument_types ::= type | symbol | struct_def✔
+
+all_val ::= arith_exp | bool_exp | value
 value ::= bool_val | int_val | float_val 
-        | byte_val | str_val | struct_lit | symbol | func_cal ✔
+        | byte_val | str_val | struct_lit | array_lit | symbol | func_cal 
 
--- the following rules are left recursive but 
+arith_exp ::= add_sub
+add_sub ::= mul_div_mod { (+ | -) mul_div_mod }
+mul_div_mod ::= primary { (/ | * | %) primary }
+arith_unary_expr ::= '-' arith_unary_expr  | primary
+primary ::= int_val | float_val | struct_access | array_access | symbol | func_cal | '(' arith_exp ')' 
+
+-- the following rules are left-recursive but 
 -- since they don't break the code it could be ignored
 array_lit = '[' {array_lit_items} ']'
 array_lit_items = all_val  | array_lit_items ',' 
 array_def ::= var_def '[' int_val ']' = array_lit
+array_access ::=  symbol '[' INT ']'
 
 struct_lit = '{' {struct_lit} '}' 
 struct_lit_items = all_val |  symbol '=' all_val | struct_lit_items ',' 
+struct_access ::= symbol '.' symbol
+struct_def ::= symbol 'struct' '{' arguments '}'
+library_access = symbol ':' ( symbol | function call)
+lib_func ::= symbol ':' func_call

@@ -3,7 +3,7 @@
 Stream *stream;
 Table *symbol_table;
 int line_no = 1;
-char* curr_lexem;
+char* curr_lexem = "being";
 
 void skip_white_space(char **ptr) {
     char *la = *ptr;
@@ -15,7 +15,7 @@ void skip_white_space(char **ptr) {
 }
 int match_del(char ch) {
     if (ch == ' ' || ch == '\t' || ch == EOF || ch == '\n' || ch == '(' || ch == '{' || ch == '[' || ch == ')'
-            || ch == '}' || ch == ']' || ch == '\0' || ch == ';' || ch == '+' || ch == '-' || ch == '=') return 1;
+            || ch == '}' || ch == ']' || ch == '\0' || ch == ';' || ch == ':' || ch == '*' || ch == '+' || ch == '-' || ch == '=' || ch == '.' || ch == ',' || ch == '!') return 1;
     return 0;
 }
 
@@ -253,7 +253,6 @@ int lex(char **input) {
                     kptr = sptr;
                     keyword_id = i;
                     curr_lexem = token_types[i].name;
-                    //printf("%s, %d\n", token_types[i].name, token_types[i].id);
                     break;
                 }
             }
@@ -274,5 +273,6 @@ int lex(char **input) {
             fptr = sptr;
         }
     }
+    stream = finilize_stream(stream, fptr);
     return 1;
 }

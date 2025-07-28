@@ -4,6 +4,7 @@
 const Token_type token_types[] = {
     {"proc", PROC},
     {"if", IF},
+    {"else", ELSE},
     {"for", FOR},
     {"ret", RET},
     {"var", VAR},
@@ -15,6 +16,8 @@ const Token_type token_types[] = {
     {"byte", BYTE},
     {"struct", STRUCT}, 
     {"pointer", POINTER},
+    {"type", TYPE},
+    {"value", VALUE},
     {"==", EQ},
     {">", GT},
     {"<", LT},
@@ -32,7 +35,10 @@ const Token_type token_types[] = {
     {"{", OPEN_CURL},
     {"}", CLOSE_CURL},
     {";", SEMI_COL}, 
-    {",", COMMA}
+    {":", COL},
+    {",", COMMA},
+    {".", DOT},
+    {"!", EX_MARK}
 };
 const int tokens_num = sizeof(token_types) / sizeof(token_types[0]);
 
@@ -60,15 +66,25 @@ Stream* update_stream(Stream* stream) {
 }
 Stream* add_to_stream(Stream* stream, Token* token) {
     if(token == NULL) return NULL;
-    if (stream->no_tokens == stream->cap) stream = update_stream(stream);
+    if(stream->no_tokens == stream->cap) stream = update_stream(stream);
     if(stream == NULL) return NULL;
     stream->tokens[stream->no_tokens] = token;
     stream->no_tokens++;
     return stream;
 }
+Stream* finilize_stream(Stream* stream, char* fptr) {
+    if(stream == NULL) return NULL;
+    Token* token = malloc(sizeof(Token));
+    token->id = EOFS;
+    token->loc = fptr;
+    token->str = "";
+    stream = add_to_stream(stream, token);
+    if(stream == NULL) return NULL;
+    return stream;
+}
 
 void destroy_stream(Stream* stream) {
-    if (stream == NULL) return NULL;
+    if (stream == NULL) return;
     for (size_t i = 0; i < stream->no_tokens; i++) free(stream->tokens[i]);
     free(stream->tokens);
     free(stream);

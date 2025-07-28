@@ -3,6 +3,7 @@
 typedef enum  {
     PROC,
     IF,
+    ELSE,
     FOR,
     RET,
     VAR,
@@ -15,6 +16,8 @@ typedef enum  {
     BYTE,
     STRUCT,
     POINTER,
+    TYPE,
+    VALUE,
 
     EQ,
     GT,
@@ -34,8 +37,12 @@ typedef enum  {
     OPEN_CURL,
     CLOSE_CURL,
     SEMI_COL,
+    COL,
     COMMA,
+    DOT,
+    EX_MARK,
 
+    EOFS,
 
     SYMBOL,
     INTEGER_VAL,
