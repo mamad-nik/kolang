@@ -4,6 +4,9 @@ AST_node* parse_deref();
 AST_node* parse_array_access();
 AST_node* parse_place();
 AST_node* parse_assignment();
+AST_node* parse_lib_acc();
+AST_node* parse_struct_access();
+AST_node* parse_func_call();
 //TODO
 AST_node* parse_arith_exp();
 AST_node* parse_all_val();
@@ -40,28 +43,78 @@ AST_type map_op(keywords id) {
     if (id == MINUS) return AST_MINUS;
     return AST_ERR;
 }
-//TODO
+AST_node *parse_deref_symbol_helper(AST_node *tmp) {
+    if(tokens_p == NULL || (*tokens_p)->id == EOF) return NULL;
+
+    tmp = parse_struct_access();
+    if(tmp) return tmp;
+
+    tmp = parse_func_call();
+    if(tmp) return tmp;
+
+    tmp = parse_array_access();
+    if(tmp) return tmp;
+    
+    if ((*tokens_p)->id == SYMBOL) {
+        tmp = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL); 
+        if (!tmp) parser_panic("error tree creation");
+        tokens_p++;
+        return tmp;
+    }
+    return NULL;
+}
+AST_node *parse_deref_symbol() {
+    if(tokens_p == NULL || (*tokens_p)->id == EOF) return NULL;
+    
+    AST_node* lib = parse_lib_acc();
+
+    AST_node *tmp = NULL;
+    tmp = parse_deref_symbol_helper(tmp);
+    if (!tmp) return NULL;
+
+    if (lib) { 
+        lib->right_child = tmp;
+        return lib;
+    }
+    return tmp;
+}
+//TODO: chaining
+AST_node* parse_deref_helper() {
+    if (tokens_p == NULL || (*tokens_p)->id == EOF) return NULL;
+
+    if ((*tokens_p)->id == VALUE || (*tokens_p)->id == OPEN_PAR) {
+        int par = 0;
+        if ((*tokens_p)->id == OPEN_PAR) par++;
+        tokens_p++;
+        AST_node* symbol = parse_deref_helper();
+        if (!symbol) return NULL;
+
+        if (par) {
+            if ((*tokens_p)->id == CLOSE_PAR) tokens_p++;
+            else parser_panic("uneven paranthesis");
+        }
+
+        AST_node* value = init_tree(AST_VALUE, "", symbol,  NULL);
+        if (!value) parser_panic("error tree creation");
+        return value; 
+
+    }
+    AST_node* symbol = parse_deref_symbol();
+    if (!symbol) return NULL;
+    tokens_p++;
+    return symbol;
+}
 AST_node* parse_deref() {
     if (tokens_p == NULL || (*tokens_p)->id == EOF) return NULL;
 
-    AST_node* tmp = NULL;
-    AST_node* value  = NULL;
-    AST_node* last = NULL;
-    while ((*tokens_p)->id != VALUE) {
-        tmp = init_tree(AST_VALUE, "", NULL, NULL);
-        if (!tmp) parser_panic("error tree creation");
-        if (!value) value = tmp;
-        if (last) last->right_child = tmp;
-        last = tmp;
-        tokens_p++;
-    } 
-
-    AST_node* symbol = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL);
-    if (!symbol) parser_panic("error tree creation");
-    last->right_child = symbol;
-
-    return value;
+    if ((*tokens_p)->id == VALUE || 
+            ((*tokens_p)->id == OPEN_PAR && tokens_p[1]->id == VALUE)) {
+        return parse_deref_helper();
+    }
+    return NULL;
 }
+                
+
 AST_node* parse_array_lit() {
     if (tokens_p == NULL || (*tokens_p)->id == EOF) return NULL;
 
@@ -160,7 +213,7 @@ AST_node* parse_struct_value() {
 AST_node* parse_func_call() {
     if(tokens_p == NULL || (*tokens_p)->id == EOF) return NULL;
 
-    if ((*tokens_p)->id != SYMBOL || tokens_p[1]->id != OPEN_PAR) return NULL;
+    if ((*tokens_p)->id != SYMBOL && tokens_p[1]->id != OPEN_PAR) return NULL;
     AST_node* func = init_tree(AST_PROC, (*tokens_p)->str, NULL, NULL);
     if (!func) parser_panic("error tree creation");
     tokens_p += 2;
@@ -211,7 +264,7 @@ AST_node* parse_struct_access() {
 AST_node* parse_array_access() {
     if(tokens_p == NULL || (*tokens_p)->id == EOF) return NULL;
 
-    if ((*tokens_p)->id != SYMBOL || tokens_p[1]->id != OPEN_BRAC) return NULL;
+    if ((*tokens_p)->id != SYMBOL && tokens_p[1]->id != OPEN_BRAC) return NULL;
     AST_node* array_access = init_tree(AST_ARRAY_ACCESS, (*tokens_p)->str, NULL, NULL);
     tokens_p += 2;
     AST_node* tmp = parse_all_val();
@@ -351,7 +404,7 @@ AST_node* parse_imports() {
 //XXX
 AST_node* parse_struct_def() {
     if (tokens_p == NULL ||  (*tokens_p)->id == EOF) return NULL;
-    if ((*tokens_p)->id != STRUCT || tokens_p[1]->id != OPEN_CURL) return NULL;
+    if ((*tokens_p)->id != STRUCT && tokens_p[1]->id != OPEN_CURL) return NULL;
     AST_node* struct_node = init_tree(AST_STRUCT, (*tokens_p)->str, NULL, NULL);  
     if((*tokens_p)->id != OPEN_CURL) parser_panic("struct_def violation");
     tokens_p += 2;
@@ -406,12 +459,10 @@ AST_node* parse_argument_pointer() {
     while ((*tokens_p)->id == POINTER) {
         AST_node* pointer_tree = init_tree(AST_POINTER, (*tokens_p)->str, NULL, NULL);
         if (pointer_tree == NULL) parser_panic("init tree error");
-        if (!head_pointer) {
-            head_pointer = pointer_tree;
-        }
-        if (!last_pointer) {
-            last_pointer = pointer_tree;
-        } else {
+        if (!head_pointer) head_pointer = pointer_tree;
+        
+        if (!last_pointer) last_pointer = pointer_tree;
+        else {
             last_pointer->left_child = pointer_tree;
             last_pointer = last_pointer->left_child;
         }
