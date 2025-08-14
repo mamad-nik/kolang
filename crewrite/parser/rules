@@ -10,7 +10,8 @@ proc_def ::= 'proc' symbol(arguments) output '{' statements '}'
 if_stmt ::= 'if' conditional '{' statements '}' [ 'else' ( if_stmt | '{' statements '}' ) ]
 for_stat ::= 'for' [var_def;] conditional[; symbol inc_dec] '{' statements '}'✔
 inc_dec ::= '++' | '--'✔
-assignment ::= place '=' all_val✔
+
+assignment ::= place '=' expr✔
 place ::= var_def | struct_access | array_access | symbol | deref✔
 
 deref ::= { value } symbol✔
@@ -23,15 +24,15 @@ primary     ::= b_value | '(' conditional ')'
 
 func_cal ::= symbol '(' arguments ')'✔
 
-statements ::= var_def | array_def | pointer_def 
-             | assignment | if_stat | for_stat | func_cal | inc_dec | 'return' all_val 
+statements ::= var_def | array_def | pointer_def | struct_def |
+             | assignment | if_stat | for_stat | func_cal | inc_dec | 'return' expr 
 
 arguments ::= { argument, } | argument 
 argument ::= symbol argument_pointer ✔
 argument_pointer ::= { 'pointer' } argument_types | argument_types✔
 argument_types ::= type | symbol | struct_def✔
 
-all_val ::= arith_exp | bool_exp | value
+expr ::= arith_exp | bool_exp | value
 value ::= bool_val | int_val | float_val 
         | byte_val | str_val | struct_lit | array_lit | symbol | func_cal 
 
@@ -44,12 +45,12 @@ primary ::= int_val | float_val | struct_access | array_access | symbol | func_c
 -- the following rules are left-recursive but 
 -- since they don't break the code it could be ignored
 array_lit = '[' {array_lit_items} ']'
-array_lit_items = all_val  | array_lit_items ',' 
-array_def ::= var_def '[' int_val ']' = array_lit
+array_lit_items = expr  | array_lit_items ',' 
+array_def ::= var_def '[' [ int_val ] ']'
 array_access ::=  symbol '[' INT ']'
 
 struct_lit = '{' {struct_lit} '}' 
-struct_lit_items = all_val |  symbol '=' all_val | struct_lit_items ',' 
+struct_lit_items = expr | symbol '=' expr | struct_lit_items ',' 
 struct_access ::= symbol '.' symbol
 struct_def ::= symbol 'struct' '{' arguments '}'
 library_access = symbol ':' ( symbol | function call)

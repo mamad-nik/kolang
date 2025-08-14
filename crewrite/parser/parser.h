@@ -8,5 +8,5 @@
 #ifndef PARSERH
 #define PARSERH
 
-int parse(Stream* input_stream); 
+AST_node* parse(Stream* input_stream); 
 #endif

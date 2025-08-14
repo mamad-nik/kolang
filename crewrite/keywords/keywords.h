@@ -20,6 +20,7 @@ typedef enum  {
     VALUE,
 
     EQ,
+    NEQ,
     GT,
     LT,
     GE,
@@ -29,6 +30,7 @@ typedef enum  {
     MINUS,
     TIMES,
     DIVIDE,
+    MODULO,
     ASSIGN,
     OPEN_PAR,
     CLOSE_PAR,
@@ -41,6 +43,8 @@ typedef enum  {
     COMMA,
     DOT,
     EX_MARK,
+    OR,
+    AND,
 
     EOFS,
 

@@ -19,6 +19,7 @@ const Token_type token_types[] = {
     {"type", TYPE},
     {"value", VALUE},
     {"==", EQ},
+    {"!=", NEQ},
     {">", GT},
     {"<", LT},
     {">=", GE},
@@ -38,7 +39,9 @@ const Token_type token_types[] = {
     {":", COL},
     {",", COMMA},
     {".", DOT},
-    {"!", EX_MARK}
+    {"!", EX_MARK},
+    {"||", OR},
+    {"&&", AND}
 };
 const int tokens_num = sizeof(token_types) / sizeof(token_types[0]);
 

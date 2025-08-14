@@ -15,7 +15,8 @@ void skip_white_space(char **ptr) {
 }
 int match_del(char ch) {
     if (ch == ' ' || ch == '\t' || ch == EOF || ch == '\n' || ch == '(' || ch == '{' || ch == '[' || ch == ')'
-            || ch == '}' || ch == ']' || ch == '\0' || ch == ';' || ch == ':' || ch == '*' || ch == '+' || ch == '-' || ch == '=' || ch == '.' || ch == ',' || ch == '!') return 1;
+            || ch == '}' || ch == ']' || ch == '\0' || ch == ';' || ch == ':' || ch == '*' || ch == '+' || ch == '-' 
+            || ch == '=' || ch == '.' || ch == ',' || ch == '!' || ch == '|' || ch == '&') return 1;
     return 0;
 }
 
