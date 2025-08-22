@@ -32,7 +32,7 @@ int switch_type_val(keywords id) {
     return 0;
 }
 void parser_panic(const char* msg) {
-    fprintf(stderr, "ERROR: %s\n", msg);
+    fprintf(stderr, "ERROR: %s approximately at %d\n", msg, (*tokens_p)->line_no);
     exit(EXIT_FAILURE);
 }
 
@@ -103,7 +103,6 @@ AST_node *parse_deref_symbol() {
     }
     return tmp;
 }
-//TODO: chaining
 AST_node* parse_deref_helper() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
@@ -154,34 +153,42 @@ AST_node* parse_array_value() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     if ((*tokens_p)->id != OPEN_BRAC) return NULL;
+    tokens_p++;
 
     AST_node* tmp = NULL;
     AST_node* par = NULL;
     AST_node* last = NULL;
+    int memnum = 0;
+    int comnum = 0;
     do {
         tmp = parse_array_lit();
         if (tmp) {
-            tmp = init_tree(AST_ARRAY_LIT, "", tmp, NULL);
-            if (!tmp) parser_panic("error tree creation");
+            memnum++;
             tmp = init_tree(AST_SEQ, "", tmp, NULL);
             if (!tmp) parser_panic("error tree creation");
             if (!par) par = tmp;
             if (last) last->right_child = tmp;
             last = tmp;
-            if ((*tokens_p)->id != COMMA) parser_panic("error in function arguments");
-            tokens_p++;
+            if ((*tokens_p)->id == COMMA) {
+                comnum++;
+                tokens_p++;
+            }
+        } else {
+            if (memnum != comnum+1) parser_panic("commas are mandatory in array values");
         }
     } while (tmp);
     if ((*tokens_p)->id != CLOSE_BRAC)
         parser_panic("closing bracket expected");
     tokens_p++;
+    AST_node* value = init_tree(AST_ARRAY_VALUE, "", par, NULL);
+    if (!value) parser_panic("error tree creation");
     return par;
 }
 
 AST_node* parse_array_def() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
-    AST_node* var = parse_var_def();
+    AST_node* var = parse_var_def(); 
     if (!var) return NULL;
 
     AST_node* range = NULL;
@@ -219,8 +226,9 @@ AST_node* parse_struct_lit() {
 AST_node* parse_struct_value() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
-    if ((*tokens_p)->id != OPEN_CURL) return NULL;
-    tokens_p++;
+    if ((*tokens_p)->id != SYMBOL || tokens_p[1]->id != OPEN_CURL) return NULL;
+    char* str = (*tokens_p)->str;
+    tokens_p += 2;
 
     AST_node* tmp = NULL;
     AST_node* par = NULL;
@@ -240,7 +248,7 @@ AST_node* parse_struct_value() {
     if ((*tokens_p)->id != CLOSE_CURL)
         parser_panic("closing curly bracket expected");
     tokens_p++;
-    AST_node* value = init_tree(AST_VALUE, "", par, NULL);
+    AST_node* value = init_tree(AST_STRUCT_VALUE, str, par, NULL);
     if (!value) parser_panic("error tree creation");
     return value;
 }
@@ -255,16 +263,23 @@ AST_node* parse_func_call() {
     AST_node* tmp = NULL;
     AST_node* par = NULL;
     AST_node* last = NULL;
+    int memno = 0;
+    int comno = 0;
     do {
         tmp = parse_exp();
         if (tmp) {
+            memno++;
             tmp = init_tree(AST_SEQ, "", tmp, NULL);
             if (!tmp) parser_panic("error tree creation");
             if (!par) par = tmp;
             if (last) last->right_child = tmp;
             last = tmp;
-            if ((*tokens_p)->id != COMMA && (*tokens_p)->id != CLOSE_PAR) parser_panic("error in function arguments");
-            tokens_p++;
+            if ((*tokens_p)->id == COMMA) {
+                comno++;
+                tokens_p++;
+            }
+        } else {
+            if (memno != comno +1) parser_panic("commas are mandatory in procedure call");
         }
     } while (tmp);
     if ((*tokens_p)->id != CLOSE_PAR) parser_panic("uneven paranthesis");
@@ -282,17 +297,74 @@ AST_node* parse_lib_acc() {
     tokens_p += 2;
     return lib;
 }
+
+AST_node* parse_struct_access_helper() {
+    if(tokens_p == NULL ||  (*tokens_p)->id == EOFS) return NULL;
+
+    if ((*tokens_p)->id != DOT) return NULL;
+    tokens_p++;
+    
+    Token** tokens = tokens_p;
+    AST_node* tmp = parse_array_access();
+    if (tmp) return tmp;
+    tokens_p = tokens;
+
+    if ((*tokens_p)->id == OPEN_PAR && tokens_p[1]->id == VALUE) {
+        tokens_p++;
+        tmp = parse_deref();
+        if(!tmp) parser_panic("invalid struct access");
+        if ((*tokens_p)->id != CLOSE_PAR) parser_panic("uneven paranthesis"); 
+        tokens_p++;
+        return tmp;
+    }
+
+    if ((*tokens_p)->id == SYMBOL) {
+        tmp = init_tree(AST_TBF, (*tokens_p)->str, NULL, NULL);
+        if (!tmp) parser_panic("error tree creation");
+        tokens_p++;
+        return tmp;
+    }
+    return NULL;
+}
+    
+AST_node* parse_struct_access_tag() {
+    if(tokens_p == NULL ||  (*tokens_p)->id == EOFS) return NULL;
+
+    AST_node* node = parse_struct_access_helper();
+    if (!node) return NULL;
+
+    if (node->type == AST_TBF) {
+        node->type = AST_STRUCT_FIELD;
+        return node;
+    } 
+
+    node = init_tree(AST_STRUCT_FIELD, "", node, NULL);
+    if (!node) parser_panic("error tree creation"); 
+    return node;
+}
     
 AST_node* parse_struct_access() {
     if(tokens_p == NULL ||  (*tokens_p)->id == EOFS) return NULL;
     
     if ((*tokens_p)->id != SYMBOL || tokens_p[1]->id != DOT) return NULL;
-    if (tokens_p[2]->id != SYMBOL) return NULL;
-    AST_node* child = init_tree(AST_STRUCT_FIELD, tokens_p[2]->str, NULL, NULL);
-    if (!child) parser_panic("error tree creation");
-    AST_node* par = init_tree(AST_STRUCT , (*tokens_p)->str, child, NULL);
+    tokens_p++;
+    
+    AST_node* tmp = NULL;
+    AST_node* par = NULL;
+    AST_node* last = NULL;
+    do {
+        tmp = parse_struct_access_tag();
+        if(tmp) {
+            tmp = init_tree(AST_SEQ, "", tmp, NULL); 
+            if (!tmp) parser_panic("error tree creation");
+            if (!par) par = tmp;
+            if (last) last->right_child = tmp;
+            last = tmp;
+        }
+    }while(tmp);
+
+    par = init_tree(AST_STRUCT, (*tokens_p)->str, par, NULL);
     if (!par) parser_panic("error tree creation");
-    tokens_p += 3;
     return par;
 }
 AST_node* parse_array_access() {
@@ -311,18 +383,32 @@ AST_node* parse_array_access() {
 AST_node *parse_swo_helper(AST_node *tmp) {
     if(tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
+    Token** tokens = tokens_p;
+
     tmp = parse_struct_access();
     if(tmp) return tmp;
+    tokens_p = tokens;
 
     tmp = parse_func_call();
     if(tmp) return tmp;
+    tokens_p = tokens;
 
     tmp = parse_deref();
     if(tmp) return tmp;
+    tokens_p = tokens;
 
     tmp = parse_array_access();
     if(tmp) return tmp;
+    tokens_p = tokens;
+
+    tmp = parse_struct_value();
+    if(tmp) return tmp;
+    tokens_p = tokens;
     
+    tmp = parse_array_value();
+    if(tmp) return tmp;
+    tokens_p = tokens;
+
     if ((*tokens_p)->id == SYMBOL) {
         tmp = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL); 
         if (!tmp) parser_panic("error tree creation");
@@ -345,30 +431,6 @@ AST_node *parse_swo() {
         return lib;
     }
     return tmp;
-}
-AST_node* parse_and() {
-    if(tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
-
-    if ((*tokens_p)->id != AMPERSAND && tokens_p[1]->id != AMPERSAND) return NULL;
-
-    AST_node* and = init_tree(AST_AND, "&&", NULL, NULL);
-    if (!and) parser_panic("error tree creation");
-
-    tokens_p += 2;
-
-    return and; 
-}
-AST_node* parse_or() {
-    if(tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
-
-    if ((*tokens_p)->id != PIPE && tokens_p[1]->id != PIPE) return NULL;
-
-    AST_node* and = init_tree(AST_OR, "||", NULL, NULL);
-    if (!and) parser_panic("error tree creation");
-
-    tokens_p += 2;
-
-    return and; 
 }
 //arithmetic parser
 typedef struct {
@@ -450,22 +512,29 @@ AST_node* parse_arith_exp_1(AST_node* lhs, int min_prec) {
 
     int prec = arith_prec_check((*tokens_p)->id);
     if (prec == -1) return NULL;
-    while (prec >= min_prec) {
+    
+    while (prec > min_prec) {
+        Token** tokens = tokens_p;
         keywords op = (*tokens_p)->id;
         tokens_p++;
         AST_node* rhs = parse_arith_primary();
+        if (!rhs) {
+            tokens_p = tokens;
+            return lhs;
+        }
         keywords nop = (*tokens_p)->id;
         int nprec = arith_prec_check(nop); 
-        while (nprec > prec) {
-            rhs = parse_arith_exp_1(rhs, nprec);
+        while (nprec >= prec) {
+            rhs = parse_arith_exp_1(rhs, prec + (prec == nprec ? 1 : 0));
             nop = (*tokens_p)->id;
             nprec = arith_prec_check(nop); 
         }
         lhs = arith_apply(op, lhs, rhs);
+        prec = arith_prec_check((*tokens_p)->id);
 
         if (is_non_associative(op)) {
             lhs = init_tree(AST_COND, "", lhs, NULL);
-            if (lhs) parser_panic("error tree creation");
+            if (!lhs) parser_panic("error tree creation");
             break;
         }
     }
@@ -487,11 +556,11 @@ AST_node* parse_assignment() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     AST_node* lhs = parse_place();
-    if (!lhs || tokens_p[1]->id != ASSIGN) return NULL;
+    if (!lhs || (*tokens_p)->id != ASSIGN) return NULL;
     tokens_p++;
 
     AST_node* rhs = parse_exp();
-    if (!rhs) return NULL;
+    if (!rhs) parser_panic("invalid right-hand side statement");
     
     AST_node* assign = init_tree(AST_ASSIGN, "", lhs, rhs);
     if (!assign) parser_panic("error tree creation");
@@ -504,17 +573,16 @@ AST_node* parse_load() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
     if((*tokens_p)->id != LOAD) return NULL;
     tokens_p++;
-    if((*tokens_p)->id != OPEN_PAR) parser_panic("invalid load");
+    if((*tokens_p)->id != OPEN_PAR) parser_panic("expected paranthesis in load");
     tokens_p++;
     if((*tokens_p)->id != STR_VAL) parser_panic("invalid load");
     AST_node* load_node = init_tree(AST_LOAD, (*tokens_p)->str, NULL, NULL);   
     if (!load_node) parser_panic("memory allocation in load");
     tokens_p++;
-    if((*tokens_p)->id != CLOSE_PAR) parser_panic("invalid load");
+    if((*tokens_p)->id != CLOSE_PAR) parser_panic("uneven paranthesis in load");
     tokens_p++;
     return load_node;
 }
-//XXX
 AST_node* parse_imports() {
     if(tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
     AST_node* tmp = NULL;
@@ -532,19 +600,17 @@ AST_node* parse_imports() {
     }while(tmp);
     return par;
 }
-//XXX
 AST_node* parse_struct_def() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
     if ((*tokens_p)->id != STRUCT || tokens_p[1]->id != OPEN_CURL) return NULL;
     AST_node* struct_node = init_tree(AST_STRUCT, "", NULL, NULL);  
-    if((*tokens_p)->id != OPEN_CURL) parser_panic("struct_def violation");
     tokens_p += 2;
     AST_node* par = NULL; 
     AST_node* last = NULL;
     AST_node* tmp = NULL;
     do {
         tmp = parse_argument();
-        if(tmp != NULL){
+        if(tmp){
             tmp->type = AST_STRUCT_FIELD;
             tmp = init_tree(AST_SEQ, "", tmp, NULL);
             if (!tmp) parser_panic("error tree creation");            
@@ -553,7 +619,7 @@ AST_node* parse_struct_def() {
             last = tmp;
         }
     } while(tmp);
-    if((*tokens_p)->id != CLOSE_CURL) parser_panic("struct_def violation");
+    if((*tokens_p)->id != CLOSE_CURL) parser_panic("uneven curly braces");
     tokens_p++;
     struct_node->left_child = par;
     return struct_node;
@@ -568,23 +634,20 @@ AST_node* parse_argument_types() {
         tokens_p++;
         return type_tree;
     }
-    if ((*tokens_p)->id != SYMBOL) {
-        char* str = (*tokens_p)->str;
+    AST_node* symbol_tree = parse_struct_def();
+    if (symbol_tree) return symbol_tree;
+
+    if ((*tokens_p)->id == SYMBOL) {
+        symbol_tree = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL);
+        if (symbol_tree == NULL) parser_panic("error tree creation");
         tokens_p++;
-        AST_node* symbol_tree = parse_struct_def();
-        if (symbol_tree) { 
-            symbol_tree->value = str;
-            return symbol_tree;
-        }
-        symbol_tree = init_tree(AST_SYMBOL, str , NULL, NULL);
-        if (symbol_tree == NULL) return NULL;
         return symbol_tree;
     }
    return NULL; 
 }
 
 AST_node* parse_argument_pointer() {
-    if(tokens_p == NULL ||  (*tokens_p)->id == EOFS) return NULL;
+    if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     AST_node* head_pointer = NULL;
     AST_node* last_pointer = NULL;
@@ -592,7 +655,6 @@ AST_node* parse_argument_pointer() {
         AST_node* pointer_tree = init_tree(AST_POINTER, (*tokens_p)->str, NULL, NULL);
         if (pointer_tree == NULL) parser_panic("init tree error");
         if (!head_pointer) head_pointer = pointer_tree;
-        
         if (!last_pointer) last_pointer = pointer_tree;
         else {
             last_pointer->left_child = pointer_tree;
@@ -601,7 +663,7 @@ AST_node* parse_argument_pointer() {
         tokens_p++;
     }
     AST_node* types = parse_argument_types();
-    if (types == NULL) parser_panic("init tree error");
+    if (types == NULL) parser_panic("error parsing argument types");
     if (head_pointer) {
         last_pointer->left_child = types;
         types = head_pointer;
@@ -613,17 +675,17 @@ AST_node* parse_argument() {
     
     if ((*tokens_p)->id != SYMBOL) return NULL;
     AST_node* symbol_tree = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL);
-    if (symbol_tree == NULL) parser_panic("init tree error");
+    if (symbol_tree == NULL) parser_panic("error tree creation");
     tokens_p++;
 
     AST_node* pointer_tree = parse_argument_pointer();
-    if (pointer_tree == NULL) parser_panic("init tree error");
+    if (pointer_tree == NULL) parser_panic("error parsing argument pointers");
     
     AST_node* tmp_node = init_tree(AST_TBF, "", symbol_tree, pointer_tree);
-    if (tmp_node == NULL) parser_panic("init tree error");
+    if (tmp_node == NULL) parser_panic("error tree creation");
     return tmp_node;
 }
-// intentionaly avoids checking for a comma in the arguments, trying to make new line work
+
 AST_node* parse_type_def() { 
     if(tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
@@ -632,7 +694,7 @@ AST_node* parse_type_def() {
     tokens_p++;
 
     AST_node* arg_node = parse_argument();
-    if (arg_node == NULL) return NULL;
+    if (arg_node == NULL) parser_panic("error parsing type arguments");
     arg_node->type = AST_TYPE;
     arg_node->value = value;
     return arg_node;
@@ -644,7 +706,7 @@ AST_node* parse_var_def() {
     char* str = (*tokens_p)->str;
     tokens_p++;
     AST_node* var_node = parse_argument();
-    if(!var_node) return NULL;
+    if(!var_node) parser_panic("error parsing variable arguments");
     var_node->type = AST_VAR;
     var_node->value = str;
     return var_node;
@@ -741,7 +803,6 @@ AST_node* parse_conditional() {
 
     AST_node* node = parse_exp();
     if (!node) return NULL;
-    //if (node->type != AST_COND) return NULL;
     return node;
 }
 
@@ -750,10 +811,13 @@ AST_node* parse_if() {
 
     if ((*tokens_p)->id != IF) return NULL;
     tokens_p++;
+
     AST_node* cond = parse_conditional();
     if (!cond) parser_panic("expexted a conditional exp");
+
     if ((*tokens_p)->id != OPEN_CURL) return NULL;
     tokens_p++;
+    
     AST_node* body = parse_statements();
     
     if ((*tokens_p)->id != CLOSE_CURL) return NULL;
@@ -761,7 +825,8 @@ AST_node* parse_if() {
 
     AST_node* ifnode = init_tree(AST_IF, "", cond, body);
     if(!ifnode) parser_panic("error tree creation");
-    return ifnode ;
+
+    return ifnode;
 }
 
 AST_node* parse_for_init() {
@@ -778,45 +843,57 @@ AST_node* parse_for_init() {
     return NULL;
 }
 
+AST_node* parse_for_control() {
+    if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
+    
+    Token** tokens = tokens_p;
+    AST_node* cond = parse_conditional();
+    if (cond && (*tokens_p)->id == OPEN_CURL) return cond;
+    
+    tokens_p = tokens;
+
+    AST_node* init = parse_for_init();
+    if (!init) parser_panic("probable invalid for syntax");
+
+    if((*tokens_p)->id != SEMI_COL) 
+        parser_panic("a semicolon is needed between the three statements of a for statement");
+    tokens_p++;
+
+    AST_node* head = init_tree(AST_SEQ, "", init, NULL);
+    if (!head) parser_panic("error tree creation");
+
+    cond = parse_conditional();
+    if (!cond) parser_panic("a conditional statement is mandatory in for statement");
+
+    AST_node* seq = init_tree(AST_SEQ, "", cond, NULL);
+    if (!seq) parser_panic("error tree creation");
+
+    if ((*tokens_p)->id != SEMI_COL) parser_panic("a semicolon is needed between the three statements of a for statement");
+    tokens_p++;
+    
+    if ((*tokens_p)->id != SYMBOL) parser_panic("exptected a symbol");
+    AST_node* tmp = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL); 
+    if (!tmp) parser_panic("error tree creation");
+    tokens_p++;
+    
+    AST_node* inc_dec = parse_inc_dec();
+    if (!inc_dec) parser_panic("expected increament or decreament");
+    inc_dec->left_child = tmp;
+
+    seq->right_child = seq;
+    head->right_child = seq;
+
+    return head;
+}
 AST_node* parse_for() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     if ((*tokens_p)->id != FOR) return NULL;
     tokens_p++;
-
-    AST_node* control = init_tree(AST_FOR_CONTROL, "", NULL, NULL);
+    AST_node* tmp = parse_for_control();
+    AST_node* control = init_tree(AST_FOR_CONTROL, "", tmp, NULL);
     if (!control) parser_panic("error tree creation");
-    AST_node* seq = NULL;
 
-    AST_node* init = parse_for_init();
-    if (init) {
-        if((*tokens_p)->id != SEMI_COL) return NULL;
-        tokens_p++;
-        seq = init_tree(AST_SEQ, "", init, NULL);
-        if (!seq) parser_panic("error tree creation");
-    }
-    AST_node* cond = parse_conditional();
-    if (!cond) parser_panic("a conditional statement is mandatory in for statement");
-    AST_node* inc_dec;
-    if (seq) {
-        seq = init_tree(AST_SEQ, "", cond, seq);
-        if (!seq) parser_panic("error tree creation");
-
-        if ((*tokens_p)->id != SEMI_COL) return NULL;
-        tokens_p++;
-        
-        if ((*tokens_p)->id != SYMBOL) return NULL;
-        AST_node* tmp = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL); 
-        if (!tmp) parser_panic("error tree creation");
-        tokens_p++;
-        
-        inc_dec = parse_inc_dec();
-        if (!inc_dec) parser_panic("expected increament or decreament");
-        inc_dec->left_child = tmp;
-
-        seq = init_tree(AST_SEQ, "", inc_dec, seq);
-        if (!seq) parser_panic("error tree creation");
-    }
     if ((*tokens_p)->id != OPEN_CURL) return NULL;
     tokens_p++;
     AST_node* body = parse_statements();
@@ -836,13 +913,14 @@ AST_node* parse_proc()  {
     AST_node* head = NULL;
     AST_node* tail = NULL;
     do {
-        AST_node* tmp = parse_argument();
+        tmp = parse_argument();
         if (tmp) {
             tmp = init_tree(AST_SEQ, "", tmp, NULL);
             if (!tmp) parser_panic("error tree creation");
             if (!head) head = tmp;
             if (tail) tail->right_child = tmp;
             tail = tmp;
+            if ((*tokens_p)->id == COMMA) tokens_p++;
         }
     } while(tmp);
     if ((*tokens_p)->id != CLOSE_PAR) parser_panic("uneven paranthesis");
@@ -858,22 +936,22 @@ AST_node* parse_proc()  {
     AST_node* proc = init_tree(AST_PROC, "", head, statements);
     if (!proc)  parser_panic("error tree creation");
     return proc;
-
 }  
 
 AST_node* parse_statement() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     Token** tmp = tokens_p;
-    AST_node* node = parse_assignment();
-    if (node) return node;
 
-    tmp = tokens_p;
-    node = parse_var_def();
+    AST_node* node = parse_assignment();
     if (node) return node;
 
     tokens_p = tmp;
     node = parse_array_def();
+    if (node) return node;
+    
+    tokens_p = tmp;
+    node = parse_var_def();
     if (node) return node;
 
     tokens_p = tmp;
@@ -906,7 +984,7 @@ AST_node* parse_statements() {
     AST_node* head = NULL;
     AST_node* tail = NULL;
     do {
-        AST_node* tmp = parse_statement();
+        tmp = parse_statement();
         if(tmp) {
             tmp = init_tree(AST_SEQ, "", tmp, NULL);
             if (!tmp) parser_panic("error tree creation");
@@ -918,7 +996,7 @@ AST_node* parse_statements() {
     if (!head) return NULL;
 
     head = init_tree(AST_STATEMENTS, "", head, NULL);
-    if (!head)  parser_panic("error tree creation");
+    if (!head) parser_panic("error tree creation");
 
     return head;
 }
@@ -974,5 +1052,6 @@ AST_node* parse(Stream* input_stream) {
 
     AST_node* program = parse_program();
     if (!program) parser_panic("no program could be parsed");
+    print_tree(program);
     return program;
 }

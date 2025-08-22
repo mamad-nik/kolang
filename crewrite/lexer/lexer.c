@@ -167,6 +167,7 @@ int inst_token(char* fptr, char* sptr, Token* token, keywords id) {
     token->id = id;
     token->loc = fptr;
     token->str = str;
+    token->line_no = line_no;
     stream = add_to_stream(stream, token);
     if (stream == NULL) return 0;
     return 1;

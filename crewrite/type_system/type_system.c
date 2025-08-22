@@ -27,8 +27,7 @@ Types* update_types(Types* types) {
     return types;
 }
 Types* add_type(Types* types, char* name) {
-    if (name == NULL) return NULL;
-    if (types == NULL) return NULL;
+    if (!name || !types) return NULL;
 
     Type* type =  malloc(sizeof(Type));
     if (type == NULL) return NULL;

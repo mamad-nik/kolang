@@ -14,6 +14,7 @@ typedef struct {
     keywords id;
     char* loc;
     char* str;
+    int line_no;
 } Token;
 
 typedef struct {

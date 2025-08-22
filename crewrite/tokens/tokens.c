@@ -20,14 +20,15 @@ const Token_type token_types[] = {
     {"value", VALUE},
     {"==", EQ},
     {"!=", NEQ},
-    {">", GT},
-    {"<", LT},
     {">=", GE},
     {"<=", LE},
+    {">", GT},
+    {"<", LT},
     {"+", PLUS},
     {"-", MINUS},
     {"*", TIMES},
     {"/", DIVIDE},
+    {"%", MODULO},
     {"=", ASSIGN},
     {"(", OPEN_PAR},
     {")", CLOSE_PAR},
@@ -81,6 +82,7 @@ Stream* finilize_stream(Stream* stream, char* fptr) {
     token->id = EOFS;
     token->loc = fptr;
     token->str = "";
+    token->line_no = -1;
     stream = add_to_stream(stream, token);
     if(stream == NULL) return NULL;
     return stream;

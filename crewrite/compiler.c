@@ -29,32 +29,40 @@ char* src_name(char* input) {
     name[size - 2] = '\0';
     return name;
 }
+*/
 char* read_all(int file) {
     struct stat st;
-    fstat(file, &st);
+    if (fstat(file, &st) < 0) {
+        fprintf(stderr, "fstat failed: %s\n", strerror(errno));
+        return NULL;
+    }
+
     off_t size = st.st_size;
-    
-    char *buffer = malloc(size);
-    if (!buffer) return NULL;
+    if (size <= 0) {
+        fprintf(stderr, "file is empty or size invalid\n");
+        return NULL;
+    }
+
+    char *buffer = malloc(size + 1); // +1 for '\0' if text
+    if (!buffer) {
+        fprintf(stderr, "malloc failed\n");
+        return NULL;
+    }
 
     size_t read_size = 0;
-    while( read_size < size ) {
-           ssize_t n = read(file, buffer + read_size, size - read_size);
-           if (n == 0) break;
-           if (n < 0) {
-                fprintf(stderr, "error while reading the src, error: %s\n", strerror(errno));
-                free(buffer);
-                return NULL;
-           }
-           read_size += n;
+    while (read_size < (size_t)size) {
+        ssize_t n = read(file, buffer + read_size, size - read_size);
+        if (n == 0) break; // EOF
+        if (n < 0) {
+            fprintf(stderr, "error reading file: %s\n", strerror(errno));
+            free(buffer);
+            return NULL;
+        }
+        read_size += n;
     }
+
+    buffer[read_size] = '\0'; // safe even for binary: adds trailing 0
     return buffer;
-        
-}
-int reader_parser(int file) {
-   char* buffer = read_all(file); 
-   printf("%s\n", buffer);
-   return 0;
 }
 
 int open_src(char* name) {
@@ -65,17 +73,17 @@ int open_src(char* name) {
     }
     return file;
 }
-*/
-int print_token(Token* token) {
-    if (token != NULL) printf("%d, %u, %s\n", token->id, token->loc, token->str);
+void print_token(Token* token) {
+    if (token != NULL) printf("%d, %s\n", token->id, token->loc);
 }
 int print_stream(Stream *stream) {
     if(stream == NULL) return 0;
     printf("---------printing stream---------\n");
     for (size_t i = 0; i < stream->no_tokens; i++) print_token(stream->tokens[i]); 
     printf("---------stream printed---------\n");
+    return 1;
 }
-int print_symbol(Symbol *symbol) {
+void print_symbol(Symbol *symbol) {
     if(symbol != NULL) printf("%s, %u\n", symbol->name, symbol->loc);
 }
 int print_table(Table* table) {
@@ -92,11 +100,13 @@ int print_table(Table* table) {
 }
 
 int main(int argc, char *argv[]) {
-    char* string = "3 + 2 + 5";
+    if (argc < 2) return 1;
+    int fd = open_src(argv[1]);
+    char* string = read_all(fd);
     lex(&string);
     print_stream(stream);
     print_table(symbol_table);
-    printf("%d\n", parse(stream));
+    parse(stream);
     
     return 0;
 }

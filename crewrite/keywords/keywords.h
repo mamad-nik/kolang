@@ -21,10 +21,10 @@ typedef enum  {
 
     EQ,
     NEQ,
-    GT,
-    LT,
     GE,
     LE,
+    GT,
+    LT,
     
     PLUS,
     MINUS,

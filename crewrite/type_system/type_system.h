@@ -3,12 +3,13 @@
 
 #include<stdlib.h>
 /*typedef enum { 
-    NO_TYPE,
-    INT_TYPE,
-    BOOL_TYPE,
-    STRING_TYPE,
-    FLOAT_TYPE,
-    BYTE_TYPE
+    TS_NO_TYPE,
+    TS_INT_TYPE,
+    TS_BOOL_TYPE,
+    TS_STRING_TYPE,
+    TS_FLOAT_TYPE,
+    TS_BYTE_TYPE,
+    TS_CUSTOM
 } Type;*/
 
 typedef struct {

@@ -8,6 +8,7 @@ typedef struct {
     char* loc;
     char* type;
     int is_func;
+    int line_no;
     void* value;
 } Symbol;
 
