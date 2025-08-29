@@ -84,30 +84,30 @@ Type_registry* update_type_registry(Type_registry* tr) {
     return tr;
 }
 
-Type_registry* add_to_custom(Type_registry* tr, Type_info* ti) {
-    if (!tr || !ti) return NULL;
+Type_registry* add_to_custom(Type_info* ti) {
+    if (!global_types || !ti) return NULL;
 
-    for (int i = 0; i < tr->no_custom; i++) {
-        if (tr->custom_types[i]->category == ti->category) {
-            if (strcmp(tr->custom_types[i]->name, ti->name) == 0) {
-                if (type_check(tr->custom_types[i], ti) != 1) {
+    for (int i = 0; i < global_types->no_custom; i++) {
+        if (global_types->custom_types[i]->category == ti->category) {
+            if (strcmp(global_types->custom_types[i]->name, ti->name) == 0) {
+                if (type_check(global_types->custom_types[i], ti) != 1) {
                     return NULL;
                 } else {
-                    return tr;
+                    return global_types;
                 }
             }
         }
     }
 
-    if (tr->no_custom + 1 >= tr->capacity) {
-        Type_registry* tempr = update_type_registry(tr);
+    if (global_types->no_custom + 1 >= global_types->capacity) {
+        Type_registry* tempr = update_type_registry(global_types);
         if (!tempr) return NULL;
-        tr = tempr;
+        global_types = tempr;
     }
 
-    tr->custom_types[tr->no_custom] = ti;
-    tr->no_custom++;   
-    return tr;
+    global_types->custom_types[global_types->no_custom] = ti;
+    global_types->no_custom++;   
+    return global_types;
 }
 
 Type_info* get_basic_type(Basic_type basic) {
@@ -135,6 +135,14 @@ Basic_type parse_basic_type(char* name) {
     if (strcmp(name, "byte") == 0) return BASIC_BYTE;
     if (strcmp(name, "string") == 0) return BASIC_STRING;
     if (strcmp(name, "void") == 0) return BASIC_VOID;
+    return -1;
+}
+Basic_type map_basic_type(AST_type type) {
+    if (AST_INT) return BASIC_INT;
+    if (AST_BOOL) return BASIC_BOOL;
+    if (AST_FLOAT) return BASIC_FLOAT;
+    if (AST_BYTE) return BASIC_BYTE;
+    if (AST_STRING) return BASIC_STRING;
     return -1;
 }
 int get_basic_type_size(Basic_type b) {
@@ -326,12 +334,12 @@ int type_check(Type_info* t1, Type_info* t2) {
     return 0;
 }
 
-Type_info* get_type_str(Type_registry* tr, char* name) {
-    if (!name || !tr) return NULL;
+Type_info* get_type_str(char* name) {
+    if (!name || !global_types) return NULL;
     
-    for (int i = 0; i < tr->no_custom; i++) 
-        if (strcmp(tr->custom_types[i]->name, name) == 0) 
-            return tr->custom_types[i];
+    for (int i = 0; i < global_types->no_custom; i++) 
+        if (strcmp(global_types->custom_types[i]->name, name) == 0) 
+            return global_types->custom_types[i];
     return NULL;
     
 }

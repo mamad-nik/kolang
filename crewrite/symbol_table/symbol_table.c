@@ -1,7 +1,7 @@
 #include"symbol_table.h"
 
-Symbol *create_symbol(char* name, char* type, Symbol_scope scope) {
-    if (!name) return NULL;
+Symbol *create_symbol(char* name, Type_info* type, Symbol_scope scope) {
+    if (!name || !type) return NULL;
 
     Symbol* sym = malloc(sizeof(Symbol));
     if (!sym) return NULL;
@@ -11,7 +11,7 @@ Symbol *create_symbol(char* name, char* type, Symbol_scope scope) {
         free(sym);
         return NULL;
     }
-    sym->type = type ? strdup(type) : NULL;
+    sym->type = type;
     sym->scope = scope;
     sym->is_pointer = 0;
     sym->is_func = 0;

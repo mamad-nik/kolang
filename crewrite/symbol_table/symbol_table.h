@@ -16,7 +16,7 @@ typedef enum {
 typedef struct {
     char* name;
     char* loc;
-    char* type;
+    Type_info* type;
     int is_pointer;
     int is_func;
     int line_no;
@@ -34,5 +34,6 @@ typedef struct {
     int array_size;
 } Symbol;
 
+Symbol *create_symbol(char* name, Type_info* type, Symbol_scope scope);
 
 #endif
