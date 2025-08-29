@@ -54,6 +54,8 @@ typedef enum {
     AST_FOR_CONTROL,
     AST_ASRGS,
     AST_STATEMENTS,
+    AST_PROC_INPUT_OUTPUT,
+    AST_IF_ELSE,
     AST_COMBS,
     AST_PROGRAM,
     AST_TOP_DEF,

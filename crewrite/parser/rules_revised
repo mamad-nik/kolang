@@ -1,0 +1,70 @@
+program ::= imports combs | combs
+imports ::= { load }
+load ::= 'load' '(' string_val ')'
+
+combs ::= top_defs procs | procs
+top_defs ::= { top_def }
+top_def ::= var_def | type_def
+type_def ::= 'type' argument
+
+procs ::= { proc_def }
+proc_def ::= 'proc' symbol '(' [ arguments ] ')' [ output ] '{' statements '}'
+output ::= symbol | type
+
+statements ::= { statement }
+statement ::= assignment | array_def | var_def | struct_def | if_stmt | for_stmt | func_call | return_stmt
+
+assignment ::= place '=' expr
+place ::= array_def | var_def | struct_access | array_access | deref | symbol
+
+var_def ::= 'var' argument
+array_def ::= var_def '[' [ integer_val ] ']'
+
+argument ::= symbol argument_pointer
+argument_pointer ::= { 'pointer' } argument_types
+argument_types ::= type | struct_def | symbol
+
+struct_def ::= 'struct' '{' { argument } '}'
+struct_access ::= symbol '.' { struct_access_tag }
+struct_access_tag ::= struct_field | array_access | '(' deref ')'
+struct_field ::= symbol
+
+array_access ::= symbol '[' expr ']'
+
+deref ::= ( 'value' | '(' 'value' deref ')' ) deref_symbol
+deref_symbol ::= ( lib_access deref_symbol_helper ) | deref_symbol_helper
+deref_symbol_helper ::= struct_access | func_call | array_access | symbol
+
+lib_access ::= symbol ':'
+
+func_call ::= symbol '(' [ func_args ] ')'
+func_args ::= expr { ',' expr }
+
+if_stmt ::= 'if' conditional '{' statements '}' [ else ( if_stmt | '{' statements '}' ) ]
+for_stmt ::= 'for' for_control '{' statements '}'
+for_control ::= conditional | ( for_init ';' conditional ';' symbol inc_dec )
+for_init ::= assignment | place
+inc_dec ::= '++' | '--'
+
+return_stmt ::= 'return' expr
+
+conditional ::= expr
+
+expr ::= arith_exp
+arith_exp ::= arith_primary [ arith_exp_1 ]
+arith_exp_1 ::= { op arith_primary }
+arith_primary ::= ( '-' | '+' | '!' ) arith_primary | '(' expr ')' | type_val | swo
+
+swo ::= [ lib_access ] swo_helper
+swo_helper ::= struct_access | func_call | deref | array_access | struct_value | array_value | symbol
+
+struct_value ::= symbol '{' { struct_lit } '}'
+struct_lit ::= assignment | expr
+
+array_value ::= '[' [ array_lits ] ']'
+array_lits ::= array_lit { ',' array_lit }
+array_lit ::= expr
+
+type ::= 'int' | 'bool' | 'string' | 'float' | 'byte'
+type_val ::= integer_val | bool_val | str_val | float_val | byte_val
+op ::= '+' | '-' | '*' | '/' | '%' | '&&' | '||' | '!=' | '==' | '>' | '<' | '>=' | '<='

@@ -7,13 +7,13 @@
 #include <unistd.h>
 #include "lexer/lexer.h"
 #include "parser/parser.h"
+#include "codegen/codegen.h"
 
-/*
-int create_file(char* name) {
-    int file = openat(AT_FDCWD, name,  O_RDWR | O_CREAT);     
-    if (file < 0) {
+FILE* create_file(char* name) {
+    FILE* file = fopen(name, "w+");
+    if (!file) {
         fprintf(stderr, "error creating the file %s, error: %s\n", name, strerror(errno));
-        return -1;
+        return NULL;
     }
     return file; 
 }
@@ -29,7 +29,17 @@ char* src_name(char* input) {
     name[size - 2] = '\0';
     return name;
 }
-*/
+char* target_name(char* fn) {
+    if (!fn) return NULL;
+
+    char* fn1 = strdup(fn);
+
+    char* str = strtok(fn1, ".");
+    char* out = strdup(str);
+    out = strcat(out, ".s");
+    free(fn1);
+    return out;
+}
 char* read_all(int file) {
     struct stat st;
     if (fstat(file, &st) < 0) {
@@ -106,7 +116,12 @@ int main(int argc, char *argv[]) {
     lex(&string);
     print_stream(stream);
     print_table(symbol_table);
-    parse(stream);
+    AST_node* tree = parse(stream);
+    if (!tree) return -1;
+    char* str = target_name(argv[1]);
+    FILE* file = create_file(str);
+    codegen(tree, file);
+    fclose(file);
     
     return 0;
 }

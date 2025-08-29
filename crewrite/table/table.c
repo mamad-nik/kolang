@@ -1,5 +1,4 @@
 #include "table.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -75,7 +74,10 @@ Table* create_table() {
     Table* table = malloc(sizeof(Table));
     if (table == NULL) return NULL;
     table->entries = calloc(INIT_size, sizeof(Entry*));
-    if (table->entries == NULL) return NULL;
+    if (table->entries == NULL) {
+        free(table);
+        return NULL;
+    }
     table->no_buckets = INIT_size;
     table->no_entries = 0;
     return table;

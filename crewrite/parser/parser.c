@@ -11,16 +11,12 @@ AST_node* parse_var_def();
 AST_node* parse_exp();
 AST_node* parse_statements();
 AST_node* parse_conditional();
+AST_node* parse_if();
 //TODO
 
 
 Token** tokens_p;
 
-int switch_val(keywords id) {
-    if (id == INTEGER_VAL || id == FLOAT_VAL || 
-            id == BOOL_VAL || id == STR_VAL || id == BYTE_VAL) return 1;
-    return 0;
-}
 int switch_type(keywords id) {
     if (id == INT || id == BOOL || id == STRING
             || id == FLOAT || id == BYTE) return 1;
@@ -45,11 +41,11 @@ AST_type map_type(keywords id) {
     return AST_ERR;
 }
 AST_type map_type_val(keywords id) {
-    if (id == INTEGER_VAL) return AST_INT;
-    if (id == BOOL_VAL) return AST_BOOL;
-    if (id == STR_VAL) return AST_STRING;
-    if (id == FLOAT_VAL) return AST_FLOAT;
-    if (id == BYTE_VAL) return AST_BYTE;
+    if (id == INTEGER_VAL) return AST_INTEGER_VAL;
+    if (id == BOOL_VAL) return AST_BOOL_VAL;
+    if (id == STR_VAL) return AST_STR_VAL;
+    if (id == FLOAT_VAL) return AST_FLOAT_VAL;
+    if (id == BYTE_VAL) return AST_BYTE_VAL;
     return AST_ERR;
 }
 AST_type map_op(keywords id) {
@@ -67,6 +63,22 @@ AST_type map_op(keywords id) {
     if (id == GE) return AST_GE;
     if (id == LE) return AST_LE;
     return AST_ERR;
+}
+char* map_op_str(keywords id) {
+    if (id == PLUS) return "+";
+    if (id == MINUS) return "-";
+    if (id == TIMES) return "*";
+    if (id == DIVIDE) return "/";
+    if (id == MODULO) return "%";
+    if (id == AND) return "&&"; 
+    if (id == OR) return "||";
+    if (id == NEQ) return  "!=";
+    if (id == EQ) return "==";
+    if (id == GT) return ">";
+    if (id == LT) return "<";
+    if (id == GE) return ">=";
+    if (id == LE) return "<=";
+    return "";
 }
 AST_node *parse_deref_symbol_helper(AST_node *tmp) {
     if(tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
@@ -118,7 +130,7 @@ AST_node* parse_deref_helper() {
             else parser_panic("uneven paranthesis");
         }
 
-        AST_node* value = init_tree(AST_VALUE, "", symbol,  NULL);
+        AST_node* value = init_tree(AST_VALUE, "value", symbol,  NULL);
         if (!value) parser_panic("error tree creation");
         return value; 
 
@@ -472,10 +484,11 @@ AST_node *parse_arith_primary() {
     if ((*tokens_p)->id == MINUS ||
             (*tokens_p)->id == PLUS || (*tokens_p)->id == EX_MARK) {
         keywords id = (*tokens_p)->id;
+        char* str = (*tokens_p)->str;
         tokens_p++;
         AST_node *lhs = parse_arith_primary();
         if (lhs == NULL) return NULL;
-        AST_node* tmp = init_tree(map_op(id), "", lhs, NULL);
+        AST_node* tmp = init_tree(map_op(id), str, lhs, NULL);
         if (!tmp) parser_panic("error tree creation");
         return tmp;
     }
@@ -503,7 +516,7 @@ AST_node *parse_arith_primary() {
     return NULL;
 }
 AST_node* arith_apply(keywords op, AST_node* lhs, AST_node* rhs) {
-    AST_node* node = init_tree(map_op(op), "", lhs, rhs);
+    AST_node* node = init_tree(map_op(op), map_op_str(op), lhs, rhs);
     if (!node) parser_panic("error tree creation");
     return node;
 }
@@ -562,7 +575,7 @@ AST_node* parse_assignment() {
     AST_node* rhs = parse_exp();
     if (!rhs) parser_panic("invalid right-hand side statement");
     
-    AST_node* assign = init_tree(AST_ASSIGN, "", lhs, rhs);
+    AST_node* assign = init_tree(AST_ASSIGN, "=", lhs, rhs);
     if (!assign) parser_panic("error tree creation");
 
     return assign; 
@@ -603,7 +616,7 @@ AST_node* parse_imports() {
 AST_node* parse_struct_def() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
     if ((*tokens_p)->id != STRUCT || tokens_p[1]->id != OPEN_CURL) return NULL;
-    AST_node* struct_node = init_tree(AST_STRUCT, "", NULL, NULL);  
+    AST_node* struct_node = init_tree(AST_STRUCT, (*tokens_p)->str, NULL, NULL);  
     tokens_p += 2;
     AST_node* par = NULL; 
     AST_node* last = NULL;
@@ -791,9 +804,17 @@ AST_node* parse_return() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
     if ((*tokens_p)->id != RET) return 0;
     tokens_p++;
+    Token** tmp = tokens_p;
     AST_node* ret_val = parse_exp();
-    if (!ret_val) parser_panic("invalid return value");
-    AST_node* ret = init_tree(AST_RET, "", ret_val, NULL);
+    if (!ret_val) {
+        tokens_p = tmp;
+        if ((*tokens_p)->id == SEMI_COL) {
+            ret_val = NULL;
+            tokens_p++;
+        } else parser_panic("invalid return value");
+    }
+
+    AST_node* ret = init_tree(AST_RET, "ret", ret_val, NULL);
     if (!ret) parser_panic("error tree creation");
     return ret;
 }
@@ -806,6 +827,33 @@ AST_node* parse_conditional() {
     return node;
 }
 
+AST_node* parse_else() {
+    if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
+
+    if ((*tokens_p)->id != ELSE) return NULL;
+    tokens_p++;
+
+    AST_node* ifnode = parse_if();
+    if (ifnode) {
+        ifnode = init_tree(AST_ELSE, "else", ifnode, NULL);
+        if(!ifnode) parser_panic("error tree creation");
+        return ifnode;
+    }
+    
+    if ((*tokens_p)->id != OPEN_CURL) parser_panic("invalid else");
+    tokens_p++;
+    
+    AST_node* body = parse_statements();
+    if (!body) parser_panic("empty else is not permitted");
+
+    if ((*tokens_p)->id != CLOSE_CURL) parser_panic("uneven paranthesis");
+    tokens_p++;
+
+    AST_node* else_node = init_tree(AST_ELSE, "else", body, NULL);
+    if(!else_node) parser_panic("error tree creation");
+
+    return else_node;
+}
 AST_node* parse_if() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
@@ -815,16 +863,27 @@ AST_node* parse_if() {
     AST_node* cond = parse_conditional();
     if (!cond) parser_panic("expexted a conditional exp");
 
-    if ((*tokens_p)->id != OPEN_CURL) return NULL;
+    if ((*tokens_p)->id != OPEN_CURL) {
+        if ((*tokens_p)->id == ASSIGN) parser_panic("assignment inside control statement of if is not permitted. did you mean ==?");
+        parser_panic("expected a {");
+    }
     tokens_p++;
     
     AST_node* body = parse_statements();
+    if (!body) parser_panic("empty if is not permitted");
     
-    if ((*tokens_p)->id != CLOSE_CURL) return NULL;
+    if ((*tokens_p)->id != CLOSE_CURL) parser_panic("uneven paranthesis");
     tokens_p++;
 
-    AST_node* ifnode = init_tree(AST_IF, "", cond, body);
+    AST_node* elsenode = parse_else();
+
+    AST_node* ifnode = init_tree(AST_IF, "if", cond, body);
     if(!ifnode) parser_panic("error tree creation");
+
+    if (elsenode) {
+        ifnode = init_tree(AST_IF_ELSE, "", ifnode, elsenode);
+        if(!ifnode) parser_panic("error tree creation");
+    }
 
     return ifnode;
 }
@@ -899,8 +958,24 @@ AST_node* parse_for() {
     AST_node* body = parse_statements();
     if ((*tokens_p)->id != CLOSE_CURL) return NULL;
     tokens_p++;
-    AST_node* fornode = init_tree(AST_FOR, "", control, body);
+    AST_node* fornode = init_tree(AST_FOR, "for", control, body);
     return fornode;
+}
+AST_node* parse_proc_output()  {
+    if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
+
+    AST_type id;
+    char* str = "";
+
+    if (switch_type((*tokens_p)->id)) id = map_type((*tokens_p)->id);
+    else if ((*tokens_p)->id == SYMBOL)  id = AST_SYMBOL;
+    else return NULL;
+
+    str = (*tokens_p)->str;
+    AST_node* node = init_tree(id, str, NULL, NULL);
+    if (!node) parser_panic("error tree creation"); 
+    tokens_p++;
+    return node;
 }
 
 AST_node* parse_proc()  {
@@ -908,6 +983,7 @@ AST_node* parse_proc()  {
 
     if ((*tokens_p)->id != PROC || tokens_p[1]->id != SYMBOL || 
             tokens_p[2]->id != OPEN_PAR) return NULL;
+    char* str = tokens_p[1]->str;
     tokens_p += 3;
     AST_node* tmp = NULL;
     AST_node* head = NULL;
@@ -925,15 +1001,19 @@ AST_node* parse_proc()  {
     } while(tmp);
     if ((*tokens_p)->id != CLOSE_PAR) parser_panic("uneven paranthesis");
     tokens_p++;
+
+    AST_node* output = NULL;
+    output = parse_proc_output();
+
     if ((*tokens_p)->id != OPEN_CURL) parser_panic("expected {");
     tokens_p++;
     AST_node* statements = parse_statements();
     if (!statements) parser_panic("expected statements");
     if ((*tokens_p)->id != CLOSE_CURL) parser_panic("uneven curly braces");
 
-    head = init_tree(AST_ASRGS, "", head, NULL);
+    head = init_tree(AST_PROC_INPUT_OUTPUT, "", head, output);
     if (!head)  parser_panic("error tree creation");
-    AST_node* proc = init_tree(AST_PROC, "", head, statements);
+    AST_node* proc = init_tree(AST_PROC, str, head, statements);
     if (!proc)  parser_panic("error tree creation");
     return proc;
 }  
