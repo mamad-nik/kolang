@@ -15,7 +15,6 @@ Type_info* create_basic_type(Basic_type cat, int size, int align) {
     return ti;
 }
 
-
 Type_registry* init_type_registry() { 
     Type_registry* registry = malloc(sizeof(Type_registry));
     if (!registry) return NULL;
@@ -58,11 +57,16 @@ Type_registry* init_type_registry() {
         return NULL;
     }
     
+    registry->basic_types[BASIC_VOID] = create_basic_type(BASIC_VOID, 0, 1);
+    if(!registry->basic_types[BASIC_VOID]) {
+        destroy_type_registry(registry);
+        return NULL;
+    }
     return registry;
 }
 
 void destroy_type_registry(Type_registry* tr) {
-    for (int i = 0; i < 5; i++) free(tr->basic_types[i]);
+    for (int i = 0; i < 6; i++) free(tr->basic_types[i]);
     for (int i = 0; i < tr->no_custom; i++){
         //TODO
         free(tr->custom_types[i]);
@@ -112,7 +116,7 @@ Type_registry* add_to_custom(Type_info* ti) {
 
 Type_info* get_basic_type(Basic_type basic) {
     if (!global_types) return NULL;
-    if (basic < 0 || basic >= 5) return NULL;
+    if (basic < 0 || basic >= 6) return NULL;
     return global_types->basic_types[basic];
 }
 

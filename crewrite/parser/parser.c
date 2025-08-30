@@ -965,7 +965,7 @@ AST_node* parse_proc_output()  {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     AST_type id;
-    char* str = "";
+    char* str;
 
     if (switch_type((*tokens_p)->id)) id = map_type((*tokens_p)->id);
     else if ((*tokens_p)->id == SYMBOL)  id = AST_SYMBOL;

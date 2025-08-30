@@ -68,16 +68,16 @@ typedef struct {
 
 extern Type_registry* global_types;
 
-//------
+
 Type_registry* init_type_registry();
 void destroy_type_registry(Type_registry* registry);
 Type_registry* add_to_custom(Type_info* ti);
-//------
+
 Type_info* get_basic_type(Basic_type basic);
 int get_basic_type_size(Basic_type basic);
 char* get_basic_type_name(Basic_type basic);
 Basic_type parse_basic_type(char* name);
-//------
+
 Type_info* create_pointer_type(char* name, Type_info* pointed_to);
 Type_info* create_array_type(char* name, Type_info* element_type, int no_elems);
 Type_info* create_struct_type(char* name, Struct_field** fields, int no_fields);
