@@ -12,7 +12,6 @@ AST_node* parse_exp();
 AST_node* parse_statements();
 AST_node* parse_conditional();
 AST_node* parse_if();
-//TODO
 
 
 Token** tokens_p;
@@ -110,7 +109,7 @@ AST_node *parse_deref_symbol() {
     if (!tmp) return NULL;
 
     if (lib) { 
-        lib->right_child = tmp;
+        lib->left_child = tmp;
         return lib;
     }
     return tmp;
@@ -197,21 +196,28 @@ AST_node* parse_array_value() {
     return par;
 }
 
+AST_node* parse_array_range() {
+    if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
+
+    AST_node* range = NULL;
+    if ((*tokens_p)->id == INTEGER_VAL || (*tokens_p)->id == SYMBOL) {
+        range = init_tree(AST_ARRAY_RANGE, (*tokens_p)->str, NULL, NULL); 
+        tokens_p++;
+    } 
+    return range;
+}
+
 AST_node* parse_array_def() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     AST_node* var = parse_var_def(); 
     if (!var) return NULL;
 
-    AST_node* range = NULL;
 
     if ((*tokens_p)->id != OPEN_BRAC) return NULL;
     tokens_p++;
 
-    if ((*tokens_p)->id == INTEGER_VAL) {
-        range = init_tree(AST_ARRAY_RANGE, (*tokens_p)->str, NULL, NULL); 
-        tokens_p++;
-    } 
+    AST_node* range = parse_array_range();
 
     if ((*tokens_p)->id != CLOSE_BRAC) return NULL;
     tokens_p++;
@@ -439,7 +445,7 @@ AST_node *parse_swo() {
     if (!tmp) return NULL;
 
     if (lib) { 
-        lib->right_child = tmp;
+        lib->left_child = tmp;
         return lib;
     }
     return tmp;
@@ -1034,9 +1040,9 @@ AST_node* parse_statement() {
     node = parse_var_def();
     if (node) return node;
 
-    tokens_p = tmp;
-    node = parse_struct_def();
-    if (node) return node;
+    //tokens_p = tmp;
+    //node = parse_struct_def();
+    //if (node) return node;
 
     tokens_p = tmp;
     node = parse_if();

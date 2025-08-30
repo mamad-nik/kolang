@@ -6,6 +6,8 @@ typedef struct {
     Table* st;
 } Cproc;
 
+Type_info* sem_func_call(AST_node* tree);
+Type_info* sem_struct_access(AST_node* tree);
 Type_info* sem_argument(AST_node* tree);
 int sem_statements(AST_node* tree);
 
@@ -33,6 +35,24 @@ Cproc* create_cproc(char* name) {
     return p;
 }
 
+Symbol* check_for_a_type(char* str) { 
+    if (!str) return NULL;
+
+    Entry* entry = lookup_entry(current_proc->st, str);
+    if (entry) {
+        Symbol* symbol = (Symbol *) entry->value;
+        return symbol;
+    }
+    entry = lookup_entry(global_symbol_table, str);
+    if (entry) {
+        Symbol* symbol = (Symbol *) entry->value;
+        return symbol;
+    }
+
+    return NULL;
+}
+
+   
 int switch_ast_type(AST_type id) {
     if (id == AST_INT || id == AST_BOOL || id == AST_STRING
             || id == AST_FLOAT || id == AST_BYTE) return 1;
@@ -70,6 +90,21 @@ Struct_field* sem_struct_field(AST_node* tree) {
 
     return field;
 }
+int traverse_fields(AST_node* tree) {
+    if (!tree) return 0;
+    
+    int nfields = 0;
+    while(tree) {
+        if (tree->type == AST_SEQ) {
+            if (tree->left_child) {
+                nfields++;
+            }
+            tree = tree->right_child;
+        }
+    }
+    return nfields;
+}
+
 Type_info* sem_struct_def(AST_node* tree) {
     if (!tree) return NULL;
 
@@ -77,27 +112,31 @@ Type_info* sem_struct_def(AST_node* tree) {
 
     tree = tree->left_child;
 
-    Struct_field** sfa = NULL;
-    int offset = 0;
-    int no_fields = 0; 
-    while(tree) {
-        if (tree->type == AST_SEQ) {
-            if (tree->left_child) {
-                Struct_field* sf = sem_struct_field(tree->left_child);    
-                if (sf) return NULL;
-                sf->offset += offset;
-                offset = sf->offset;
-                no_fields++;
-                sfa = reallocarray(sfa, no_fields, sizeof(Struct_field*));
-                if (!sfa) return NULL;
+    int nfields = traverse_fields(tree);
 
-                sfa[no_fields-1] = sf;
-            } 
-        } else break;
+    Struct_field** fields = calloc(nfields, sizeof(Struct_field*));
+    if (!fields) return NULL;
+
+    int offset = 0;
+    for (int i = 0; i < nfields; i++) {
+        if(tree) {
+            if (tree->type == AST_SEQ) {
+                if (tree->left_child) {
+                    Struct_field* sf = sem_struct_field(tree->left_child);    
+                    if (!sf) {
+                        free(fields);
+                        return NULL;
+                    }
+                    sf->offset += offset;
+                    offset = sf->offset;
+                    fields[i] = sf;
+                } 
+            } else break;
+        }
     }
     char* name = malloc(sizeof(char)*10);
     rand_str(name, 10);
-    Type_info*  structu =  create_struct_type(name, sfa, no_fields);
+    Type_info*  structu =  create_struct_type(name, fields, nfields);
     if (!structu) return NULL;
     return structu;
 }
@@ -153,16 +192,12 @@ void sem_gvar_def(AST_node* tree) {
     Type_info* type = sem_argument(tree->right_child); 
 
     Entry* entry = lookup_entry(global_symbol_table, str);
-    if (!entry) {
-        Symbol *symbol = create_symbol(str, type, scope);
-        insert_entry(global_symbol_table, str, symbol);
+    if (entry) {
         return;
     }
-    Symbol* symbol = (Symbol*)entry->value; 
-    if (type_check(symbol->type, type)) {
-        return;
-        //TODO: error
-    } else return;
+    Symbol *symbol = create_symbol(str, type, scope);
+    insert_entry(global_symbol_table, str, symbol);
+    return;
 }
 
 void sem_top_def(AST_node* tree) {
@@ -179,8 +214,6 @@ void sem_top_def(AST_node* tree) {
 }
 
 Type_info* sem_proc_out(AST_node* tree) {
-
-    Symbol* symbol = current_proc->gt_entry_symbol;
     
     Type_info* type = NULL;
     if (!tree) type = get_basic_type(BASIC_VOID);
@@ -220,10 +253,16 @@ Type_info** sem_proc_inp(AST_node* tree, int nparams) {
                 if (tree->left_child) {
                     Type_info* param = sem_argument(tree->left_child);
                     //TODO: error
-                    if (!param) return NULL;
+                    if (!param) {
+                        free(params);
+                        return NULL;
+                    }
                     params[i] = param;
                     Symbol *symbol = create_symbol(param->name, param, scope);
-                    if(!insert_entry(current_proc->st, param->name, symbol)) return NULL;
+                    if(!insert_entry(current_proc->st, param->name, symbol)){
+                        free(params);
+                        return NULL;
+                    }
                 }
                 tree = tree->right_child;
             }
@@ -266,7 +305,10 @@ Type_info* sem_proc_inp_out(AST_node* tree) {
     return proc;
 }
 
-int sem_statements(AST_node* tree) {}
+int sem_statements(AST_node* tree) {
+    if (!tree) return 0;
+
+}
 
 void sem_proc(AST_node* tree) {
     if (!tree) return;
@@ -283,12 +325,13 @@ void sem_proc(AST_node* tree) {
     Type_info* proc = sem_proc_inp_out(head);
     if (!proc) return;
     
-    int lss = sem_statements(statements);
-
     scope = SCOPE_GLOBAL;
     Symbol* symbol = create_symbol(str, proc, scope); 
-    if (symbol) return;
+    if (!symbol) return;
     current_proc->gt_entry_symbol = symbol;
+
+    int lss = sem_statements(statements);
+
 
     symbol->is_func = 1;
     symbol->param_count = proc->data.function.no_params;
@@ -298,25 +341,218 @@ void sem_proc(AST_node* tree) {
     if(!insert_entry(global_symbol_table, str, symbol)) return;
 }
 
-void sem_var_def(AST_node* tree) {
-    if (!tree) return;
+Symbol* sem_var_def(AST_node* tree) {
+    if (!tree) return NULL;
 
-    if (tree->type != AST_VAR) return;
+    if (tree->type != AST_VAR) return NULL;
 
     char* str = tree->left_child->value;
     Type_info* type = sem_argument(tree->right_child);
 
-    Entry* entry = lookup_entry(current_proc->st, str);
-    if (!entry) {
-        Symbol *symbol = create_symbol(str, type, scope);
-        insert_entry(current_proc->st, str, symbol);
-        return;
+    Symbol* symbol = check_for_a_type(str);
+    if (symbol) {
+        return NULL;
     }
-    Symbol* symbol = (Symbol*)entry->value; 
-    if (type_check(symbol->type, type)) {
-        return;
-        //TODO: error
-    } else return;
+
+    symbol = create_symbol(str, type, scope);
+    if (!symbol) return NULL;
+    return symbol;
+}
+
+Type_info* sem_array_access(AST_node* tree) {
+    if(!tree) return NULL;
+    
+    if (tree->type != AST_ARRAY_ACCESS) return NULL;
+
+    Symbol* symbol = check_for_a_type(tree->value);
+
+    if (symbol->type->category != TC_ARRAY) return NULL;
+    
+    return symbol->type->data.array.element_type;   
+}
+Type_info* sem_deref_helper(AST_node* tree) {
+    if(!tree) return NULL;
+
+    if (tree->type ==  AST_VALUE) {
+        Type_info* pointer = sem_deref_helper(tree->left_child);
+        if(pointer->category != TC_POINTER) return NULL;
+        return pointer->data.pointer.pointed_to;
+    } else {
+        if (tree->type == AST_LIB) tree = tree->left_child;
+
+        Type_info* type = NULL; 
+        switch (tree->type) {
+            case (AST_ARRAY_ACCESS): 
+                type = sem_array_access(tree);
+                break;
+            case (AST_STRUCT):
+                type = sem_struct_access(tree);
+                break;
+            case (AST_PROC):
+                type = sem_func_call(tree);
+                break;
+            case(AST_SYMBOL):
+                Symbol* symbol = check_for_a_type(tree->value);
+                if (!symbol) return NULL;
+                type = symbol->type;
+                break;
+            default:
+                return NULL;
+                break;
+        }
+        return type;
+    }
+    return NULL;
+}
+Type_info* sem_deref(AST_node* tree) {
+    if(!tree) return NULL;
+
+    if (tree->type != AST_VALUE) return NULL;
+    return sem_deref_helper(tree);
+}
+
+Type_info* sem_struct_access_helper(AST_node* tree, Type_info* par) {
+    if (!tree || !par) return NULL;
+
+    if (tree->type == AST_SEQ) {
+        if(tree->left_child) {
+            if(tree->left_child->type == AST_STRUCT_FIELD) {
+
+                AST_node* node = tree->left_child;
+                char *str = node->value;
+                Type_info* type = NULL; 
+
+                switch (node->type) {
+                    case AST_ARRAY_ACCESS:
+                        type = sem_array_access(tree);
+                        break;
+                    case AST_VALUE:
+                        type = sem_deref(tree);
+                        break;
+                    case AST_STRUCT_FIELD:
+                        break;
+                    default:
+                        return NULL;
+                }
+                
+                int found = 0;
+                for(int i = 0; i < par->data.structure.no_fields; i++) {
+                    if (strcmp(par->data.structure.fields[i]->name, str) == 0) {
+                        if (type) {
+                            if (type_check(par->data.structure.fields[i]->type, type) != 1) return NULL;
+                            found++;
+                            break;
+                        } else { 
+                            type = par->data.structure.fields[i]->type;
+                            found++;
+                            break;
+                        }
+                    }
+                }
+                if (!found) return NULL;
+                
+                if (tree->right_child) return sem_struct_access_helper(tree->right_child, type);
+                else return type;
+            }
+        }
+    }
+    return NULL;
+}
+Type_info* sem_struct_access(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (tree->type != AST_STRUCT) return NULL;
+
+    char* str = tree->value;
+    
+    Symbol* symbol = check_for_a_type(tree->value);
+    if (symbol->type->category != TC_STRUCT) return NULL;
+
+    tree = tree->left_child;
+    if (!tree) return NULL;
+    return sem_struct_access_helper(tree->left_child, symbol->type);
+
+}
+
+int sem_if(AST_node* tree) {
+    if (!tree) return 0;
+
+    if (tree->type == AST_IF_ELSE) {
+        sem_if(tree->left_child);
+        sem_if(tree->right_child);
+    } else if (tree->type == AST_IF) {
+        sem_statements(tree->right_child);
+    } else if (tree->type == AST_ELSE) {
+        int lss = sem_if(tree->left_child);
+        if (lss) return lss;
+        lss = sem_statements(tree->left_child);
+        if (lss) return lss;
+    }
+    return 0;
+
+}
+
+int sem_for(AST_node* tree) {
+    if (!tree) return 0;
+
+    if (tree->type != AST_FOR) return 0;
+
+    return sem_statements(tree->right_child);
+}
+
+int sem_func_call_params(AST_node* tree, Type_info** params, int nparams) {
+    if (!tree || !params) return 0;
+
+    int i = 0;
+    while(tree) {
+        if (i >= nparams) return -1;
+        if (!tree || tree->type != AST_SEQ) return 0;
+
+        if (tree->left_child) i++;
+        tree = tree->right_child;
+    }
+    if (i < nparams) return -1;
+    return 1;
+}
+Type_info* sem_func_call(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (tree->type != AST_PROC) return NULL;
+
+    Symbol *symbol = check_for_a_type(tree->value);
+    if (!symbol) return NULL;
+
+    if (symbol->type->category != TC_FUNCTION) return NULL;
+    if (sem_func_call_params(tree->left_child, symbol->type->data.function.params, symbol->type->data.function.no_params) != 1) return NULL;
+    return symbol->type->data.function.ret_type;
+}
+int sem_ret(AST_node* tree) {
+    if (!tree) return 0;
+
+    Symbol* symbol = current_proc->gt_entry_symbol;
+    //XXX
+    symbol->type->data.function.ret_type;
+    
+}
+Type_info* sem_array_def(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (tree->type != AST_ARRAY) return NULL;
+
+    int range = 0;
+    if (tree->left_child) {
+        if (tree->left_child->type != AST_ARRAY_RANGE) return NULL;
+        range = atoi(tree->left_child->value);
+    }
+    Symbol* var = sem_var_def(tree->right_child);
+    if (!var) return NULL;
+   
+    Type_info* array = create_array_type(var->name, var->type, range);
+    if (!array) return NULL;
+
+    if (!insert_entry(current_proc->st, var->name, array)) return NULL;
+
+    return array;
 }
 void semantics(AST_node* tree, Table* symbol_table) {}
     

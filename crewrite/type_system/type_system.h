@@ -68,6 +68,7 @@ typedef struct {
 
 extern Type_registry* global_types;
 
+Basic_type map_basic_val(AST_type id);
 
 Type_registry* init_type_registry();
 void destroy_type_registry(Type_registry* registry);

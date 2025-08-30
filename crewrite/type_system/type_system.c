@@ -149,6 +149,14 @@ Basic_type map_basic_type(AST_type type) {
     if (AST_STRING) return BASIC_STRING;
     return -1;
 }
+Basic_type map_basic_val(AST_type id) {
+    if (id == AST_INTEGER_VAL) return BASIC_INT;
+    if (id == AST_BOOL_VAL) return BASIC_BOOL;
+    if (id == AST_STR_VAL) return BASIC_STRING;
+    if (id == AST_FLOAT_VAL) return BASIC_FLOAT;
+    if (id == AST_BYTE_VAL) return BASIC_BYTE;
+    return BASIC_VOID;
+}
 int get_basic_type_size(Basic_type b) {
     return global_types->basic_types[b]->size_byte;
 }
