@@ -9,7 +9,18 @@ typedef struct {
 Type_info* sem_func_call(AST_node* tree);
 Type_info* sem_struct_access(AST_node* tree);
 Type_info* sem_argument(AST_node* tree);
+Type_info* sem_array_def(AST_node* tree);
+Type_info* sem_exp(AST_node* tree);
+Type_info* sem_deref(AST_node* tree);
+Type_info* sem_array_access(AST_node* tree);
+Type_info* parse_struct_value(AST_node* tree);
+Type_info* parse_array_value(AST_node* tree);
+Symbol* sem_var_def(AST_node* tree);
+int sem_if(AST_node* tree); 
+int sem_assignment(AST_node* tree);
 int sem_statements(AST_node* tree);
+int sem_for(AST_node* tree); 
+int sem_ret(AST_node* tree);
 
 Table* global_symbol_table;
 Cproc* current_proc;
@@ -35,6 +46,14 @@ Cproc* create_cproc(char* name) {
     return p;
 }
 
+int switch_op(AST_type op)  {
+    if (op == AST_PLUS || op == AST_MINUS || op == AST_TIMES ||
+            op == AST_DIVIDE || op == AST_MODULO || op == AST_AND ||
+            op == AST_OR || op == AST_EQ || op == AST_NEQ || op == AST_LT 
+            || op == AST_GT || op == AST_LE || op == AST_GE || op == AST_EX_MARK) return 1; 
+    return 0;
+}
+
 Symbol* check_for_a_type(char* str) { 
     if (!str) return NULL;
 
@@ -56,6 +75,11 @@ Symbol* check_for_a_type(char* str) {
 int switch_ast_type(AST_type id) {
     if (id == AST_INT || id == AST_BOOL || id == AST_STRING
             || id == AST_FLOAT || id == AST_BYTE) return 1;
+    return 0;
+}
+int switch_ast_value(AST_type id) {
+    if (id == AST_INTEGER_VAL || id == AST_BOOL_VAL || id == AST_STR_VAL
+            || id == AST_FLOAT_VAL || id == AST_BYTE_VAL) return 1;
     return 0;
 }
 void rand_str(char *dest, size_t length) {
@@ -200,6 +224,119 @@ void sem_gvar_def(AST_node* tree) {
     return;
 }
 
+int sem_is_num(Type_info* type) {
+    if (!type) return 0;
+    if (type->category == TC_BASIC)
+        if (type->data.basic == BASIC_INT || type->data.basic == BASIC_FLOAT)
+            return 1;
+    return 0;
+}
+
+int sem_is_bool(Type_info* type) {
+    if (!type) return 0;
+    if (type->category == TC_BASIC)
+        if (type->data.basic == BASIC_BOOL) return 1;
+    return 0;
+}
+
+Type_info* sem_exp1(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if(!switch_op(tree->type)) {
+        if (switch_ast_value(tree->type))  {
+            return get_basic_type(map_basic_val(tree->type));
+        }
+
+        if (tree->type == AST_LIB) tree = tree->left_child;
+        Type_info* type = NULL;
+        switch (tree->type){
+            case(AST_STRUCT):
+                type = sem_struct_access(tree);
+                break;
+            case(AST_PROC):
+                type = sem_func_call(tree);
+                break;
+            case(AST_VALUE):
+                type = sem_deref(tree);
+                break;
+            case(AST_ARRAY_ACCESS):
+                type = sem_array_access(tree);
+                break;
+            case(AST_STRUCT_VALUE):
+                type = parse_struct_value(tree);
+                break;
+            case(AST_ARRAY_VALUE):
+                type = parse_array_value(tree);
+                break;
+            case(AST_SYMBOL): {
+                Symbol* symbol = check_for_a_type(tree->value);
+                if (symbol) type = symbol->type;
+                break;
+            }
+            default:
+                break;
+        }
+        if (!type) return NULL;
+        return type;
+    }
+
+    if (tree->type == AST_PLUS || tree->type == AST_MINUS) {
+        if (!tree->right_child) {
+            if (!tree->left_child) return NULL;
+            Type_info* type = sem_exp1(tree->left_child);
+            if (!type) return NULL;
+            if (!sem_is_num(type)) return NULL;
+            return type;
+        }
+    }
+
+    if (tree->type == AST_EX_MARK) {
+        if (!tree->right_child) {
+            if (!tree->left_child) return NULL;
+            Type_info* type = sem_exp1(tree->left_child);
+            if (!type) return NULL;
+            if (!sem_is_bool(type)) return NULL;
+            return type;
+        }
+    }
+
+    AST_type t = tree->type;
+    if (t == AST_PLUS || t == AST_MINUS || t == AST_TIMES || t == AST_DIVIDE
+            || t == AST_MODULO || t == AST_GT || t == AST_LT ||
+            t == AST_GE || t == AST_LE) {
+        Type_info* lhs = sem_exp1(tree->left_child);
+        if (!lhs) return NULL;
+        Type_info* rhs = sem_exp1(tree->right_child);
+        if (!rhs) return NULL;
+
+        if (!sem_is_num(lhs) || !sem_is_num(rhs)) return NULL;
+        if (type_check(lhs, rhs) != 1) return NULL;
+        return lhs;
+
+    } else if (t == AST_AND || t == AST_OR ) {
+        Type_info* lhs = sem_exp1(tree->left_child);
+        if (!lhs) return NULL;
+        Type_info* rhs = sem_exp1(tree->right_child);
+        if (!rhs) return NULL;
+
+        if (!sem_is_bool(lhs) || !sem_is_bool(rhs)) return NULL;
+        return lhs;
+
+    } else if (t == AST_NEQ || t == AST_EQ)  {
+        Type_info* lhs = sem_exp1(tree->left_child);
+        if (!lhs) return NULL;
+        Type_info* rhs = sem_exp1(tree->right_child);
+        if (!rhs) return NULL;
+        
+        if (type_check(lhs, rhs) != 1) return NULL;
+        
+        if(lhs->category == TC_BASIC) return lhs;
+        if(rhs->category == TC_BASIC) return rhs;
+    }
+            
+    return NULL;
+}
+
 void sem_top_def(AST_node* tree) {
     if (!tree) return;
     AST_node* node = tree;
@@ -305,9 +442,35 @@ Type_info* sem_proc_inp_out(AST_node* tree) {
     return proc;
 }
 
+int sem_statement(AST_node* tree) {
+    if (!tree) return 0;
+
+    if (sem_assignment(tree)) return 1;
+    if (sem_array_def(tree)) return 1;
+    Symbol* symbol = sem_var_def(tree); 
+    if (symbol) return insert_entry(current_proc->st, symbol->name, symbol);
+
+    if (sem_if(tree)) return 1;
+    if (sem_for(tree)) return 1;
+    if (sem_func_call(tree)) return 1;
+    if (sem_ret(tree)) return 1;
+
+    return 0;
+}
 int sem_statements(AST_node* tree) {
     if (!tree) return 0;
 
+    if (tree->type != AST_STATEMENTS) return 0;
+
+    tree = tree->left_child;
+    while (tree) {
+        if (tree->type ==  AST_SEQ) { 
+            if (!tree->left_child) return 0;
+            if(!sem_statements(tree->left_child)) return 0;
+            tree = tree->right_child;
+        }
+    }
+    return 1;
 }
 
 void sem_proc(AST_node* tree) {
@@ -530,8 +693,8 @@ int sem_ret(AST_node* tree) {
     if (!tree) return 0;
 
     Symbol* symbol = current_proc->gt_entry_symbol;
-    //XXX
-    symbol->type->data.function.ret_type;
+    //XXX symbol->type->data.function.ret_type;
+    return 1;
     
 }
 Type_info* sem_array_def(AST_node* tree) {

@@ -49,6 +49,7 @@ typedef enum {
     AST_LIB,
     AST_INC,
     AST_DEC,
+    AST_EX_MARK,
     AST_OR,
     AST_AND,
     AST_FOR_CONTROL,

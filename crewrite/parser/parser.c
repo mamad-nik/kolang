@@ -53,6 +53,7 @@ AST_type map_op(keywords id) {
     if (id == TIMES) return AST_TIMES;
     if (id == DIVIDE) return AST_DIVIDE;
     if (id == MODULO) return AST_MODULO;
+    if (id == EX_MARK) return AST_EX_MARK;
     if (id == AND) return AST_AND; 
     if (id == OR) return AST_OR;
     if (id == NEQ) return AST_NEQ;
@@ -484,7 +485,7 @@ int arith_prec_check(keywords id) {
     return -1;
 }
 
-AST_node *parse_arith_primary() {
+AST_node *parse_primary() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     if ((*tokens_p)->id == MINUS ||
@@ -492,7 +493,7 @@ AST_node *parse_arith_primary() {
         keywords id = (*tokens_p)->id;
         char* str = (*tokens_p)->str;
         tokens_p++;
-        AST_node *lhs = parse_arith_primary();
+        AST_node *lhs = parse_primary();
         if (lhs == NULL) return NULL;
         AST_node* tmp = init_tree(map_op(id), str, lhs, NULL);
         if (!tmp) parser_panic("error tree creation");
@@ -526,7 +527,7 @@ AST_node* arith_apply(keywords op, AST_node* lhs, AST_node* rhs) {
     if (!node) parser_panic("error tree creation");
     return node;
 }
-AST_node* parse_arith_exp_1(AST_node* lhs, int min_prec) {
+AST_node* parse_exp_1(AST_node* lhs, int min_prec) {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     int prec = arith_prec_check((*tokens_p)->id);
@@ -536,7 +537,7 @@ AST_node* parse_arith_exp_1(AST_node* lhs, int min_prec) {
         Token** tokens = tokens_p;
         keywords op = (*tokens_p)->id;
         tokens_p++;
-        AST_node* rhs = parse_arith_primary();
+        AST_node* rhs = parse_primary();
         if (!rhs) {
             tokens_p = tokens;
             return lhs;
@@ -544,7 +545,7 @@ AST_node* parse_arith_exp_1(AST_node* lhs, int min_prec) {
         keywords nop = (*tokens_p)->id;
         int nprec = arith_prec_check(nop); 
         while (nprec >= prec) {
-            rhs = parse_arith_exp_1(rhs, prec + (prec == nprec ? 1 : 0));
+            rhs = parse_exp_1(rhs, prec + (prec == nprec ? 1 : 0));
             nop = (*tokens_p)->id;
             nprec = arith_prec_check(nop); 
         }
@@ -561,9 +562,9 @@ AST_node* parse_arith_exp_1(AST_node* lhs, int min_prec) {
 }
 AST_node* parse_exp() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
-    AST_node* lhs = parse_arith_primary();
+    AST_node* lhs = parse_primary();
     if (!lhs) return NULL;
-    AST_node* tmp = parse_arith_exp_1(lhs, 0);
+    AST_node* tmp = parse_exp_1(lhs, 0);
     if(!tmp) {
         return lhs;
     }

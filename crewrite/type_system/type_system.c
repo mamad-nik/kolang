@@ -281,12 +281,10 @@ int struct_type_check(Type_info* t1, Type_info* t2) {
 
     if (t1->data.structure.no_fields != t2->data.structure.no_fields) return -1;
 
-    for(int i = 0; i < t1->data.structure.no_fields; i++) {
+    for(int i = 0; i < t1->data.structure.no_fields; i++) 
         if (type_check(t1->data.structure.fields[i]->type, 
-                    t2->data.structure.fields[i]->type) != 1) {
-            return 0;
-        }
-    }
+                    t2->data.structure.fields[i]->type) != 1) return 0;
+    
     return 1;
 }
         
@@ -296,49 +294,21 @@ int type_check(Type_info* t1, Type_info* t2) {
 
     switch (t1->category) {
         case TC_BASIC:
-            switch (t2->category) { 
-                case TC_ARRAY:
-                    return type_check(t1, t2->data.array.element_type);
-                    break;
-                case TC_BASIC:
-                    return t1->data.basic == t2->data.basic;
-                    break;
-                case TC_FUNCTION:
-                    return type_check(t1, t2->data.function.ret_type);
-                    break;
-                default:
-                    return 0;
-            }
+            if (t2->category == TC_BASIC)  return t1->data.basic == t2->data.basic;
             break;
         case TC_POINTER:
-            return type_check(t1->data.pointer.pointed_to, t2->data.pointer.pointed_to);
+            if (t2->category == TC_POINTER) return type_check(t1->data.pointer.pointed_to, t2->data.pointer.pointed_to);
             break;
         case TC_ARRAY:
-            switch (t2->category) { 
-                case TC_ARRAY:
-                    return type_check(t1->data.array.element_type, t2->data.array.element_type);
-                    break;
-                case TC_BASIC:
-                    return type_check(t1->data.array.element_type, t2);
-                    break;
-                default:
-                    return 0;
-            }
+            if (t2->category == TC_ARRAY)  
+                return type_check(t1->data.array.element_type, t2->data.array.element_type);
             break;
         case TC_STRUCT:
             return struct_type_check(t1, t2);
             break;
         case TC_FUNCTION:
-            switch (t2->category) { 
-                case TC_FUNCTION:
-                    return type_check(t1->data.function.ret_type, t2->data.function.ret_type);
-                    break;
-                case TC_BASIC:
-                    return type_check(t1->data.function.ret_type, t2);
-                    break;
-                default:
-                    return 0;
-            }
+            if (t2->category == TC_FUNCTION) 
+                return type_check(t1->data.function.ret_type, t2->data.function.ret_type);
             break;
         default:
             return 0;
