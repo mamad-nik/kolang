@@ -13,12 +13,12 @@ Type_info* sem_array_def(AST_node* tree);
 Type_info* sem_exp(AST_node* tree);
 Type_info* sem_deref(AST_node* tree);
 Type_info* sem_array_access(AST_node* tree);
-Type_info* parse_struct_value(AST_node* tree);
-Type_info* parse_array_value(AST_node* tree);
+Type_info* sem_statements(AST_node* tree);
+Type_info* sem_struct_value(AST_node* tree);
+Type_info* sem_array_value(AST_node* tree);
+Type_info* sem_assignment(AST_node* tree);
 Symbol* sem_var_def(AST_node* tree);
 int sem_if(AST_node* tree); 
-int sem_assignment(AST_node* tree);
-int sem_statements(AST_node* tree);
 int sem_for(AST_node* tree); 
 int sem_ret(AST_node* tree);
 
@@ -203,10 +203,27 @@ Type_info* sem_argument_pointer(AST_node* tree) {
 Type_info* sem_argument(AST_node* tree) {
     if (!tree) return NULL;
     
+    if (!tree->right_child) return NULL;
+    tree = tree->right_child; 
     Type_info* pointer = sem_argument_pointer(tree);
     if (!pointer) return NULL;
     
     return pointer;
+}
+
+Type_info* sem_type_def(AST_node* tree) {
+    if (!tree) return NULL;
+    scope = SCOPE_GLOBAL;
+
+    if (tree->type != AST_TYPE) return NULL;
+    Type_info* type = sem_argument(tree);
+    if (!type) return NULL;
+
+    char* str = strdup(tree->left_child->value);
+    if (!str) return NULL;
+    type->name = str;
+    if(!add_to_custom(type)) return NULL;
+    return type;
 }
 void sem_gvar_def(AST_node* tree) {
     if (!tree) return;
@@ -239,6 +256,87 @@ int sem_is_bool(Type_info* type) {
     return 0;
 }
 
+Type_info* parse_struct_lit(Struct_field* field, AST_node* tree) {
+    if (!field || !tree) return NULL;
+
+    if (tree->type != AST_STRUCT_FIELD) return NULL;
+    if (!tree->left_child) return NULL;
+
+    tree = tree->left_child;
+
+    if (tree->type == AST_ASSIGN) {
+        Type_info* type = sem_assignment(tree);
+        if (!type) return NULL;
+        if (strcmp(tree->left_child->value, field->name) != 0) return NULL;
+        if (type_check(field->type, type) != 1) return NULL;
+        return type;
+    } else {
+        Type_info* type = sem_exp(tree);
+        if (!type) return NULL;
+        if (type_check(field->type, type) != 1) return NULL;
+        return type;
+    }
+    return NULL;
+    
+}
+Type_info* sem_struct_value(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (tree->type != AST_STRUCT_VALUE) return NULL;
+    char* str = tree->value;
+    if(!tree) return NULL;
+    tree = tree->left_child;
+
+    Symbol* symbol = check_for_a_type(str);
+    if (!symbol) return NULL;
+    Type_info* type = symbol->type;
+    if (type->category != TC_STRUCT) return NULL;
+
+    for (int i = 0; i < type->data.structure.no_fields; i++) {
+        if (tree->type == AST_SEQ) {
+            if(!parse_struct_lit(type->data.structure.fields[i], tree->left_child)) return NULL;
+            tree = tree->right_child;
+        }
+    }
+    if (tree) return NULL;
+    return type;
+
+}
+Type_info* sem_array_value(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (tree->type != AST_ARRAY_VALUE) return NULL;
+    if (tree->left_child) return NULL;
+    tree = tree->left_child;
+
+    int no_elements = 0;
+    Type_info* type = NULL;
+    while(tree) {
+        if (tree->type == AST_SEQ) {
+            if(tree->left_child) {
+                if (tree->left_child->type == AST_ARRAY_LIT) {
+                    AST_node* node = tree->left_child;
+                    Type_info* elem_type = sem_exp(node->left_child);
+                    if (elem_type) return NULL;
+                    if (!type) {
+                        type = elem_type;
+                    } else {
+                        if (type_check(type, elem_type) != 1) return NULL;
+                        no_elements++;
+                    }
+                }
+            }
+            tree = tree->right_child;
+        }
+    }
+    if (type == NULL) return NULL;
+    char* name = malloc(sizeof(char)*10);
+    rand_str(name, 10);
+    Type_info* array = create_array_type(name, type, no_elements);
+    if (!array) return NULL;
+    return array;
+}
+
 Type_info* sem_exp1(AST_node* tree) {
     if (!tree) return NULL;
 
@@ -263,10 +361,10 @@ Type_info* sem_exp1(AST_node* tree) {
                 type = sem_array_access(tree);
                 break;
             case(AST_STRUCT_VALUE):
-                type = parse_struct_value(tree);
+                type = sem_struct_value(tree);
                 break;
             case(AST_ARRAY_VALUE):
-                type = parse_array_value(tree);
+                type = sem_array_value(tree);
                 break;
             case(AST_SYMBOL): {
                 Symbol* symbol = check_for_a_type(tree->value);
@@ -442,6 +540,53 @@ Type_info* sem_proc_inp_out(AST_node* tree) {
     return proc;
 }
 
+Type_info* sem_place(AST_node* tree) {
+    if (!tree) return NULL;
+
+    Type_info* type = NULL;
+    switch (tree->type) {
+        case (AST_ARRAY):
+            type = sem_array_def(tree);
+            break;
+        case (AST_VAR): {
+            Symbol* symbol = sem_var_def(tree);
+            if(symbol) type = symbol->type;
+            break;
+        }
+        case (AST_STRUCT):
+            type = sem_struct_access(tree);
+            break;
+        case (AST_ARRAY_ACCESS):
+            type = sem_array_access(tree);
+            break;
+        case (AST_VALUE):
+            type = sem_deref(tree);
+            break;
+        case (AST_SYMBOL): {
+            Symbol* symbol = check_for_a_type(tree->value);
+            if(symbol) type = symbol->type;
+            break;
+        }
+        default:
+            break;
+    }
+    if (!type) return NULL;
+    return type;
+}
+
+Type_info* sem_assignment(AST_node* tree) {
+    if (!tree) return NULL;
+    
+    if (tree->type != AST_ASSIGN) return NULL;
+    
+    Type_info* rhs = sem_place(tree->left_child);
+    if (!rhs) return NULL;
+
+    Type_info* lhs = sem_exp(tree->right_child);
+    if (!lhs) return NULL;
+    if (type_check(rhs, lhs) != 1) return NULL;
+    return rhs;
+}
 int sem_statement(AST_node* tree) {
     if (!tree) return 0;
 
