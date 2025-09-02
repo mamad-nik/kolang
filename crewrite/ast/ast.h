@@ -60,6 +60,7 @@ typedef enum {
     AST_COMBS,
     AST_PROGRAM,
     AST_TOP_DEF,
+    AST_WHILE,
 
     AST_SYMBOL,
     AST_INTEGER_VAL,

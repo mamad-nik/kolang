@@ -9,5 +9,6 @@
 #include"../symbol_table/symbol_table.h"
 #include "../table/table.h"
 
-void semantics(AST_node* tree, Table* symbol_table); 
+extern Table* global_symbol_table;
+void semantics(AST_node* tree); 
 #endif

@@ -27,7 +27,7 @@ int switch_type_val(keywords id) {
     return 0;
 }
 void parser_panic(const char* msg) {
-    fprintf(stderr, "ERROR: %s approximately at %d\n", msg, (*tokens_p)->line_no);
+    fprintf(stderr, "PARSING ERROR: %s approximately at %d\n", msg, (*tokens_p)->line_no);
     exit(EXIT_FAILURE);
 }
 
@@ -184,11 +184,17 @@ AST_node* parse_array_value() {
             if ((*tokens_p)->id == COMMA) {
                 comnum++;
                 tokens_p++;
+                if ((*tokens_p)->id == CLOSE_BRAC) {
+                    parser_panic("trailing comma in array value");
+                }
+            } else if ((*tokens_p)->id == CLOSE_BRAC) {
+                break;
+            } else {
+                parser_panic("commas are mandatory in array values");
             }
-        } else {
-            if (memnum != comnum+1) parser_panic("commas are mandatory in array values");
         }
     } while (tmp);
+    if (memnum > 0 && comnum != memnum - 1) parser_panic("comma count mismatch in procedure call");
     if ((*tokens_p)->id != CLOSE_BRAC)
         parser_panic("closing bracket expected");
     tokens_p++;
@@ -245,9 +251,15 @@ AST_node* parse_struct_lit() {
 AST_node* parse_struct_value() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
-    if ((*tokens_p)->id != SYMBOL || tokens_p[1]->id != OPEN_CURL) return NULL;
-    char* str = (*tokens_p)->str;
-    tokens_p += 2;
+    char* str;
+    if ((*tokens_p)->id == SYMBOL && tokens_p[1]->id == STRUCT && tokens_p[2]->id == OPEN_CURL) {
+        str = (*tokens_p)->str;
+        tokens_p += 3;
+    } else if ((*tokens_p)->id == STRUCT && tokens_p[1]->id == OPEN_CURL) {
+        str = "";
+        tokens_p += 2;
+    } else return NULL;
+
 
     AST_node* tmp = NULL;
     AST_node* par = NULL;
@@ -279,6 +291,10 @@ AST_node* parse_func_call() {
     AST_node* func = init_tree(AST_PROC, (*tokens_p)->str, NULL, NULL);
     if (!func) parser_panic("error tree creation");
     tokens_p += 2;
+    if ((*tokens_p)->id == CLOSE_PAR) {
+        tokens_p++;
+        return func;
+    }
     AST_node* tmp = NULL;
     AST_node* par = NULL;
     AST_node* last = NULL;
@@ -296,11 +312,17 @@ AST_node* parse_func_call() {
             if ((*tokens_p)->id == COMMA) {
                 comno++;
                 tokens_p++;
+                if ((*tokens_p)->id == CLOSE_PAR) {
+                    parser_panic("trailing comma in procedure call");
+                }
+            } else if ((*tokens_p)->id == CLOSE_PAR) {
+                    break;
+            } else {
+                parser_panic("expected comma or closing parenthesis in procedure call");
             }
-        } else {
-            if (memno != comno +1) parser_panic("commas are mandatory in procedure call");
-        }
+        }     
     } while (tmp);
+    if (memno > 0 && comno != memno - 1) parser_panic("comma count mismatch in procedure call");
     if ((*tokens_p)->id != CLOSE_PAR) parser_panic("uneven paranthesis");
     func->left_child = par;
     tokens_p++;
@@ -553,8 +575,6 @@ AST_node* parse_exp_1(AST_node* lhs, int min_prec) {
         prec = arith_prec_check((*tokens_p)->id);
 
         if (is_non_associative(op)) {
-            lhs = init_tree(AST_COND, "", lhs, NULL);
-            if (!lhs) parser_panic("error tree creation");
             break;
         }
     }
@@ -914,7 +934,11 @@ AST_node* parse_for_control() {
     
     Token** tokens = tokens_p;
     AST_node* cond = parse_conditional();
-    if (cond && (*tokens_p)->id == OPEN_CURL) return cond;
+    if (cond && (*tokens_p)->id == OPEN_CURL) {
+        cond = init_tree(AST_WHILE, "", cond, NULL);
+        if (!cond) parser_panic("error tree creation");
+        return cond;
+    }
     
     tokens_p = tokens;
 
@@ -946,8 +970,11 @@ AST_node* parse_for_control() {
     if (!inc_dec) parser_panic("expected increament or decreament");
     inc_dec->left_child = tmp;
 
-    seq->right_child = seq;
+    seq->right_child = inc_dec;
     head->right_child = seq;
+
+    head = init_tree(AST_FOR, "", head, NULL);
+    if (!head) parser_panic("error tree creation");
 
     return head;
 }

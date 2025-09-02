@@ -118,10 +118,10 @@ int main(int argc, char *argv[]) {
     print_table(symbol_table);
     AST_node* tree = parse(stream);
     if (!tree) return -1;
-    char* str = target_name(argv[1]);
+    /*char* str = target_name(argv[1]);
     FILE* file = create_file(str);
     codegen(tree, file);
-    fclose(file);
+    fclose(file);*/
     
     return 0;
 }

@@ -15,8 +15,8 @@ void skip_white_space(char **ptr) {
 }
 int match_del(char ch) {
     if (ch == ' ' || ch == '\t' || ch == EOF || ch == '\n' || ch == '(' || ch == '{' || ch == '[' || ch == ')'
-            || ch == '}' || ch == ']' || ch == '\0' || ch == ';' || ch == ':' || ch == '*' || ch == '+' || ch == '-' 
-            || ch == '=' || ch == '.' || ch == ',' || ch == '!' || ch == '|' || ch == '&') return 1;
+            || ch == '}' || ch == ']' || ch == '\0' || ch == ';' || ch == ':' || ch == '*' || ch == '+' || ch == '-' || ch == '/'   
+            || ch == '%' || ch == '=' || ch == '.' || ch == ',' || ch == '!' || ch == '|' || ch == '&') return 1;
     return 0;
 }
 
@@ -214,7 +214,7 @@ char* pattern_match(char*  str, Token* token) {
             if (symbol == NULL) return NULL;
             symbol->name = name;
             symbol->loc = str;
-            symbol->type = "";
+            symbol->type = NULL;
             symbol->is_func = 0;
             symbol->value = NULL;
             if (!insert_entry(symbol_table, symbol->name, symbol)) return NULL;
