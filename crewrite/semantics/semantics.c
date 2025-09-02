@@ -25,6 +25,14 @@ int sem_ret(AST_node* tree);
 Cproc* current_proc;
 Symbol_scope scope; 
 
+int type_compat(Type_info* type, Basic_type basic) {
+    if (!type) return 0;
+
+    Type_info* basic_type = get_basic_type(basic);
+    if (!basic_type) return 0;
+    return type_check(type, basic_type) == 1 ? 1 : 0;
+}
+
 void sem_panic(const char* msg) {
     if (current_proc)
         fprintf(stderr, "SEMANITCAL ANALISYS ERROR: %s in procedure named: %s\n", msg, current_proc->name);
@@ -500,6 +508,8 @@ void sem_top_def(AST_node* tree) {
                 case(AST_TYPE):
                     sem_type_def(node);
                     break;
+                default:
+                    break;
             }
             tree = tree->right_child;
         }
@@ -706,7 +716,17 @@ void sem_proc(AST_node* tree) {
 
     if(!insert_entry(global_symbol_table, str, symbol)) sem_panic_allocation();
 }
+void sem_procs(AST_node* tree) {
+    if (!tree) return;
 
+    while(tree) {
+        if (tree && tree->left_child) 
+            if(tree->type == AST_SEQ)
+                sem_proc(tree->left_child);
+        tree = tree->right_child;
+    }
+
+}
 Symbol* sem_var_def(AST_node* tree) {
     if (!tree) return NULL;
 
@@ -842,26 +862,107 @@ int sem_if(AST_node* tree) {
     if (!tree) return 0;
 
     if (tree->type == AST_IF_ELSE) {
-        sem_if(tree->left_child);
-        sem_if(tree->right_child);
+        if (!tree->left_child || !tree->right_child) sem_panic_parser_error();
+        if (!sem_if(tree->left_child)) sem_panic("invalid if statement");
+        if (!sem_if(tree->right_child)) sem_panic("invalid if statement");
+        return 1;
     } else if (tree->type == AST_IF) {
-        sem_statements(tree->right_child);
+        if (!tree->left_child) sem_panic_parser_error();
+
+        Type_info* type = sem_exp(tree->left_child);
+        if (!type) sem_panic("invalid expression in if control");
+
+        if (!type_compat(type, BASIC_BOOL))
+            sem_panic("expression in if control statement must be boolean");
+        
+        if (!tree->right_child) sem_panic_parser_error();
+        if (!sem_statements(tree->right_child)) sem_panic("invalid statement in if body");
+        return 1;
     } else if (tree->type == AST_ELSE) {
-        int lss = sem_if(tree->left_child);
-        if (lss) return lss;
-        lss = sem_statements(tree->left_child);
-        if (lss) return lss;
+        if (sem_if(tree->left_child)) return 1;
+        if (!sem_statements(tree->left_child)) sem_panic("invalid statement in else body");
     }
     return 0;
 
 }
 
+int sem_inc_dec(AST_node* tree) {
+    if (!tree) return 0;
+
+    if(tree->type != AST_INC || tree->type != AST_DEC) return 0;
+    if(!tree->left_child) sem_panic_parser_error();
+
+    tree = tree->left_child;
+    Symbol* symbol = check_for_a_symbol(tree->value);
+    if (!symbol) sem_panic("undefined variable");
+
+    if(!type_compat(symbol->type, BASIC_INT)) sem_panic("only integer values can be incremented/decremented");
+    
+    return 1;
+}
+    
+
+int sem_for_control_helper(AST_node* tree) {
+    if (!tree) return 0;
+
+    if (tree->type != AST_SEQ) return 0;
+
+    if (!tree->left_child) return 0;
+    if (!tree->right_child) return 0;
+    AST_node* init = tree->left_child;
+
+    Type_info* init_type = sem_place(init);
+    if (!init_type) return 0;
+    
+    if (!type_compat(init_type, BASIC_INT))
+        sem_panic("non integer expression in the first statment of for control statement");
+    
+    tree = tree->right_child;
+    if (tree->type != AST_SEQ) return 0;
+
+    AST_node* cond = tree->left_child;
+
+    Type_info* cond_type = sem_exp(cond);
+    if (!type_compat(cond_type, BASIC_BOOL))
+        sem_panic("the expression in the second statement of for control, must be boolean");
+    
+    AST_node* inc_dec = tree->right_child;
+    if(!sem_inc_dec(inc_dec)) sem_panic("invalid incrementation/decrementation");
+
+    return 1;
+
+}
+int sem_for_control(AST_node* tree) {
+    if (!tree) return 0;
+
+    if (tree->type != AST_FOR_CONTROL) return 0;
+    if (!tree->left_child) sem_panic_parser_error();
+    tree = tree->left_child;
+
+
+    if (tree->type == AST_WHILE) {
+        if (!tree->left_child) sem_panic_parser_error();
+        tree = tree->left_child;
+        
+        Type_info* type = sem_exp(tree);
+        if (!type) sem_panic("invalid expression in a for control statement");
+        if (type->category != TC_BASIC) sem_panic("invalid expression in a for control statement");
+        if (type->data.basic != BASIC_BOOL) sem_panic("the expression in a for control statement must be boolean");
+        return 1;
+    } else if (tree->type == AST_FOR) {
+        if (!tree->left_child) sem_panic_parser_error();
+        tree = tree->left_child;
+
+    } else return 0;
+    
+
+}
 int sem_for(AST_node* tree) {
     if (!tree) return 0;
 
     if (tree->type != AST_FOR) return 0;
     
-    int statements =  sem_statements(tree->right_child)
+    int statements =  sem_statements(tree->right_child);
     return statements;
 }
 
@@ -876,7 +977,7 @@ int sem_func_call_params(AST_node* tree, Type_info** params, int nparams) {
         if (!type) sem_panic("invalid expression in function call");
         
         if (type_check(type, params[i]) != 1)
-            sem_panic("argument of incompatible type is passed to the function call"); 
+            sem_panic("argument of incompatible type is passed to the procedure call"); 
 
         tree = tree->right_child;
     }
@@ -887,12 +988,12 @@ Type_info* sem_func_call(AST_node* tree) {
     if (tree->type != AST_PROC) return NULL;
 
     Symbol *symbol = check_for_a_symbol(tree->value);
-    if (!symbol) return NULL;
+    if (!symbol) sem_panic("undefined procedure called");
 
-    if (symbol->type->category != TC_FUNCTION) return NULL;
+    if (symbol->type->category != TC_FUNCTION) sem_panic("called variable is not a procedure");
     if (sem_func_call_params(tree->left_child,
                 symbol->type->data.function.params,
-                symbol->type->data.function.no_params) != 1) return NULL;
+                symbol->type->data.function.no_params) != 1) sem_panic("invalid parameter in procedure call");
     return symbol->type->data.function.ret_type;
 }
 int sem_ret(AST_node* tree) {
@@ -916,21 +1017,38 @@ Type_info* sem_array_def(AST_node* tree) {
 
     int range = 0;
     if (tree->left_child) {
-        if (tree->left_child->type != AST_ARRAY_RANGE) return NULL;
+        if (tree->left_child->type != AST_ARRAY_RANGE) sem_panic_parser_error();
         range = atoi(tree->left_child->value);
     }
     Symbol* var = sem_var_def(tree->right_child);
-    if (!var) return NULL;
+    if (!var) sem_panic_parser_error();
    
     Type_info* array = create_array_type(var->name, var->type, range);
-    if (!array) return NULL;
+    if (!array) sem_panic_allocation();
 
-    if (!insert_entry(current_proc->st, var->name, array)) return NULL;
+    if (!insert_entry(current_proc->st, var->name, array)) sem_panic_allocation();
 
     return array;
 }
-void semantics(AST_node* tree) {
+void sem_combs(AST_node* tree) {
     if (!tree) return; 
 
+    if (tree->type != AST_COMBS) return;
+
+    sem_top_def(tree->left_child);
+    sem_procs(tree->right_child);
+}
+void sem_program(AST_node* tree) {
+    if (!tree) return; 
+
+    if (tree->type != AST_PROGRAM) return;
+    
+    if (!tree->right_child) return;
+    sem_combs(tree->right_child);
+
+}
+void semantics(AST_node* tree) {
+    if (!tree) return; 
+    sem_program(tree);
 }
     
