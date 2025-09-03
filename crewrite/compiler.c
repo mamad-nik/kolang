@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include "lexer/lexer.h"
 #include "parser/parser.h"
+#include "semantics/semantics.h"
 #include "codegen/codegen.h"
 
 FILE* create_file(char* name) {
@@ -118,6 +119,8 @@ int main(int argc, char *argv[]) {
     print_table(symbol_table);
     AST_node* tree = parse(stream);
     if (!tree) return -1;
+    init_type_registry();
+    semantics(tree);
     /*char* str = target_name(argv[1]);
     FILE* file = create_file(str);
     codegen(tree, file);

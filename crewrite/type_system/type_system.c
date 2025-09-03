@@ -62,6 +62,7 @@ Type_registry* init_type_registry() {
         destroy_type_registry(registry);
         return NULL;
     }
+    global_types = registry;
     return registry;
 }
 
@@ -141,12 +142,12 @@ Basic_type parse_basic_type(char* name) {
     if (strcmp(name, "void") == 0) return BASIC_VOID;
     return -1;
 }
-Basic_type map_basic_type(AST_type type) {
-    if (AST_INT) return BASIC_INT;
-    if (AST_BOOL) return BASIC_BOOL;
-    if (AST_FLOAT) return BASIC_FLOAT;
-    if (AST_BYTE) return BASIC_BYTE;
-    if (AST_STRING) return BASIC_STRING;
+Basic_type map_basic_type(AST_type id) {
+    if (id == AST_INT) return BASIC_INT;
+    if (id == AST_BOOL) return BASIC_BOOL;
+    if (id == AST_FLOAT) return BASIC_FLOAT;
+    if (id == AST_BYTE) return BASIC_BYTE;
+    if (id == AST_STRING) return BASIC_STRING;
     return -1;
 }
 Basic_type map_basic_val(AST_type id) {
@@ -247,7 +248,7 @@ Type_info* create_struct_type(char* name, Struct_field** fields, int no_fields) 
 
 Type_info* create_func_type(char* name,
         Type_info* ret_type, Type_info** params, int no_params) {
-    if (!name || !ret_type || !params || no_params < 0) return NULL;
+    if (!name || !ret_type || no_params < 0) return NULL;
 
     Type_info* proc = malloc(sizeof(Type_info));
     if(!proc) return NULL;

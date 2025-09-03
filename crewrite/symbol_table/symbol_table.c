@@ -7,7 +7,7 @@ Symbol *create_symbol(char* name, Type_info* type, Symbol_scope scope) {
     if (!sym) return NULL;
 
     sym->name = strdup(name);
-    if (sym->name) {
+    if (!sym->name) {
         free(sym);
         return NULL;
     }

@@ -181,6 +181,12 @@ char* pattern_match(char*  str, Token* token) {
         if (!inst_token(str, sptr, token, BYTE_VAL)) return NULL;
         return sptr;
     } 
+    double floatval = 0;
+    sptr = lex_float(str, &floatval);
+    if (sptr) {
+        if (!inst_token(str, sptr, token, FLOAT_VAL)) return NULL;
+        return sptr;
+    }
     int intval = 0;
     sptr = lex_integer(str, &intval);
     if (sptr) {
@@ -190,12 +196,6 @@ char* pattern_match(char*  str, Token* token) {
     sptr = lex_bool(str, &intval);
     if (sptr) {
         if (!inst_token(str, sptr, token, BOOL_VAL)) return NULL;
-        return sptr;
-    }
-    double floatval = 0;
-    sptr = lex_float(str, &floatval);
-    if (sptr) {
-        if (!inst_token(str, sptr, token, FLOAT_VAL)) return NULL;
         return sptr;
     }
     sptr = lex_string(str, &intval);
