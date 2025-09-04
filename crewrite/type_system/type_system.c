@@ -197,12 +197,13 @@ Type_info* create_array_type(char* name, Type_info* element_type, int no_elems) 
         free(array);
         return NULL;
     }
+    int align = element_type->alignment;
 
     *array = (Type_info){
         .name = str,
         .category = TC_ARRAY,
-        .size_byte = no_elems* element_type->size_byte,
-        .alignment = element_type->alignment,
+        .size_byte = 0,
+        .alignment = align,
         .data.array = { 
             .element_type = element_type,
             .no_elements = no_elems,
@@ -277,8 +278,9 @@ int struct_type_check(Type_info* t1, Type_info* t2) {
     if (!t1 || !t2) return -1;
     if (t1->category != TC_STRUCT || t2->category != TC_STRUCT) return -1;
 
+    int name_check = 1;
     if (strcmp(t1->name, "") != 0 && strcmp(t2->name, "") != 0) 
-        if (strcmp(t1->name, t2->name) == 0) return 1;
+        if (strcmp(t1->name, t2->name) != 0) name_check = 0;
 
     if (t1->data.structure.no_fields != t2->data.structure.no_fields) return -1;
 

@@ -26,7 +26,7 @@ argument_types ::= type | struct_def | symbol
 
 struct_def ::= 'struct' '{' { argument } '}'
 struct_access ::= symbol '.' { struct_access_tag }
-struct_access_tag ::= struct_field | array_access | '(' deref ')'
+struct_access_tag ::= struct_field | array_access 
 struct_field ::= symbol
 
 array_access ::= symbol '[' expr ']'

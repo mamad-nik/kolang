@@ -203,17 +203,15 @@ AST_node* parse_array_value() {
     tokens_p++;
     AST_node* value = init_tree(AST_ARRAY_VALUE, "", par, NULL);
     if (!value) parser_panic("error tree creation");
-    return par;
+    return value;
 }
 
 AST_node* parse_array_range() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
-    AST_node* range = NULL;
-    if ((*tokens_p)->id == INTEGER_VAL || (*tokens_p)->id == SYMBOL) {
-        range = init_tree(AST_ARRAY_RANGE, (*tokens_p)->str, NULL, NULL); 
-        tokens_p++;
-    } 
+    AST_node* range = parse_exp();
+    if (!range) return NULL;
+    range = init_tree(AST_ARRAY_RANGE, "", range, NULL); 
     return range;
 }
 
@@ -226,8 +224,11 @@ AST_node* parse_array_def() {
 
     if ((*tokens_p)->id != OPEN_BRAC) return NULL;
     tokens_p++;
-
-    AST_node* range = parse_array_range();
+    AST_node* range = NULL;
+    if ((*tokens_p)->id != CLOSE_BRAC) {
+        range = parse_array_range();
+        if (!range) parser_panic("invalid expression inside an array index");
+    }
 
     if ((*tokens_p)->id != CLOSE_BRAC) return NULL;
     tokens_p++;
@@ -353,15 +354,6 @@ AST_node* parse_struct_access_helper() {
     if (tmp) return tmp;
     tokens_p = tokens;
 
-    if ((*tokens_p)->id == OPEN_PAR && tokens_p[1]->id == VALUE) {
-        tokens_p++;
-        tmp = parse_deref();
-        if(!tmp) parser_panic("invalid struct access");
-        if ((*tokens_p)->id != CLOSE_PAR) parser_panic("uneven paranthesis"); 
-        tokens_p++;
-        return tmp;
-    }
-
     if ((*tokens_p)->id == SYMBOL) {
         tmp = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL);
         if (!tmp) parser_panic("error tree creation");
@@ -412,7 +404,8 @@ AST_node* parse_array_access() {
     if(tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
     if ((*tokens_p)->id != SYMBOL || tokens_p[1]->id != OPEN_BRAC) return NULL;
-    AST_node* array_access = init_tree(AST_ARRAY_ACCESS, (*tokens_p)->str, NULL, NULL);
+    AST_node* array_access = 
+        init_tree(AST_ARRAY_ACCESS, (*tokens_p)->str, NULL, NULL);
     tokens_p += 2;
     AST_node* tmp = parse_exp();
     if (!tmp) parser_panic("invalid array index");
