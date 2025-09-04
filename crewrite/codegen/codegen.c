@@ -1,12 +1,30 @@
 #include"codegen.h"
 
 int is_runnable;
+Table* global_symbol_table;
+
+int switch_op(AST_type op)  {
+    if (op == AST_PLUS || op == AST_MINUS || op == AST_TIMES ||
+            op == AST_DIVIDE || op == AST_MODULO || op == AST_AND ||
+            op == AST_OR || op == AST_EQ || op == AST_NEQ || op == AST_LT 
+            || op == AST_GT || op == AST_LE || op == AST_GE || op == AST_EX_MARK) return 1; 
+    return 0;
+}
 
 Symbol* lookup_symbol(Table* st, char* key) {
     if (!st || !key) return NULL;
-    Entry* entry = lookup_entry(st, key);
-    if (!entry) return NULL;
-    return (Symbol*)entry->value;
+    Symbol* symbol = NULL;
+    Entry* entry = lookup_entry(global_symbol_table, key);
+    if (entry) {
+       symbol = (Symbol*) entry->value;
+       return symbol;
+    }
+    entry = lookup_entry(st, key);
+    if (entry) {
+       symbol = (Symbol*) entry->value;
+       return symbol;
+    }
+    return NULL;
 }
 typedef struct { 
     char* buffer;
@@ -266,21 +284,24 @@ void bss_init(Code_gen* cg) {
 int generate_exp(Code_gen* cg, AST_node* expr) {
     if (!expr || !cg) return 1;
 
-    switch (expr->type) {
-        case(AST_INTEGER_VAL): 
-            cg->current_proc->body = code_buf_append(cg->current_proc->body, 
-                    "   movq $%s, %%rax\n", expr->value);
-            break;
-            /*
-        case(AST_SYMBOL): 
-            Symbol* symbol = 
-                lookup_symbol(cg->current_proc->locals, expr->value); 
-            if (symbol) {
+    if (!switch_op(expr->type)) {
+        switch (expr->type) {
+            case(AST_INTEGER_VAL): 
                 cg->current_proc->body = code_buf_append(cg->current_proc->body, 
-                        "   movq %d(%%rbp), %%rax\n", symbol->stack_offset);
+                        "   movq $%s, %%rax\n", expr->value);
+                break;
+            case(AST_SYMBOL): {
+                Symbol* symbol = 
+                    lookup_symbol(cg->current_proc->locals, expr->value); 
+                if (symbol) {
+                    cg->current_proc->body = code_buf_append(cg->current_proc->body, 
+                            "   movq %d(%%rbp), %%rax\n", symbol->stack_offset);
+                }
+                break;
             }
-            break;
-            */
+        }
+    }
+    switch(expr->type) {
         case(AST_PLUS): 
             generate_exp(cg, expr->left_child);
             cg->current_proc->body = code_buf_append(cg->current_proc->body, 
@@ -302,6 +323,16 @@ int generate_exp(Code_gen* cg, AST_node* expr) {
                     "   subq %%rax, %%rbx\n");
             cg->current_proc->body = code_buf_append(cg->current_proc->body,
                     "   movq %%rbx, %%rax\n");
+            break;
+        case(AST_TIMES):
+            generate_exp(cg, expr->left_child);
+            cg->current_proc->body = code_buf_append(cg->current_proc->body,
+                    "   pushq %%rax\n");
+            generate_exp(cg, expr->right_child);
+            cg->current_proc->body = code_buf_append(cg->current_proc->body, 
+                    "   popq %%rbx\n");
+            cg->current_proc->body = code_buf_append(cg->current_proc->body, 
+                    "   imulq %%rbx, %%rax\n");
             break;
         default:
             break;

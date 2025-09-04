@@ -202,7 +202,7 @@ Type_info* create_array_type(char* name, Type_info* element_type, int no_elems) 
     *array = (Type_info){
         .name = str,
         .category = TC_ARRAY,
-        .size_byte = 0,
+        .size_byte = 8,
         .alignment = align,
         .data.array = { 
             .element_type = element_type,

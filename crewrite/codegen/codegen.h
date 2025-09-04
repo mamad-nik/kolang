@@ -5,8 +5,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include "../symbol_table/symbol_table.h"
+#include "../type_system/type_system.h"
 
 FILE* codegen(AST_node* tree, FILE* file);
-
 
 #endif
