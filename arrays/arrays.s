@@ -9,7 +9,9 @@ error_create_array_str: .asciz "error creating array, mmap"#26
 .global _create_array
 .global _destroy_array
 .global _resize_array
+.global _append_array
 .global _add_to_array
+.global _destroy_array
 #header: data pointer, elem_size, capacity, number of elements 
 _create_array:
 	pushq %rbp
@@ -20,6 +22,9 @@ _create_array:
 
 	movq %rdi, %r12
 	movq %rsi, %r13
+
+	cmpq $8, %r12
+	jg .error_too_large
 
 	movq %rsi, %rax
 	mulq %rdi
@@ -59,9 +64,12 @@ _create_array:
 	movq $0, 24(%rax)
 	jmp .create_array_done
 
+	.error_too_large:
+	movq $0, %rax
+	jmp .create_array_done
 	
 	.error_create_array:
-	xorq %rax, %rax
+	movq $-1, %rax
 
 	.create_array_done:
 	popq %r13
@@ -80,6 +88,11 @@ _resize_array:
 	movq %rdi, %rbx 
 
 	movq 16(%rbx), %rax
+	testq %rax, %rax
+	jnz .normal_resize
+	movq $1, %rax
+
+	.normal_resize:
 	movq $2, %rcx
 	mulq %rcx
 	movq %rax, %r12
@@ -140,7 +153,7 @@ _resize_array:
 	popq %rbp
 	ret
 
-_add_to_array:
+_append_array:
 	pushq %rbp
 	movq %rsp, %rbp	
 	pushq %r12
@@ -152,10 +165,10 @@ _add_to_array:
 	movq 24(%rbx), %rax
 	incq %rax
 	cmpq 16(%rbx), %rax
-	jge .add_to_array_resize
+	jge .append_array_resize
 
 
-	.add_to_array_continue:
+	.append_array_continue:
 	movq 0(%rbx), %r12
 	movq 24(%rbx), %rax
 	mulq 8(%rbx)
@@ -164,38 +177,107 @@ _add_to_array:
 
 	movq 8(%rbx), %rax
 	cmpq $1, %rax
-	je .add_to_array_byte
+	je .append_array_byte
 	cmpq $8, %rax
-	je .add_to_array_quad
-	jmp .add_to_array_error
+	je .append_array_quad
+	jmp .append_array_error
 
-	.add_to_array_byte:
+	.append_array_byte:
 	movb %sil, (%r13)
-	jmp	.add_to_array_done
-	.add_to_array_quad:
+	jmp	.append_array_done
+	.append_array_quad:
 	movq %rsi, (%r13)
-	.add_to_array_done:
+	.append_array_done:
 	incq 24(%rbx)
 	xorq %rax, %rax
-	jmp .add_to_array_exit
+	jmp .append_array_exit
 
-	.add_to_array_resize:
+	.append_array_resize:
 	movq %rsi, %r13
 	movq %rbx, %rdi
 	call _resize_array
 	testq %rax, %rax
-	jnz .add_to_array_error
+	jnz .append_array_error
 	movq %r13, %rsi
-	jmp .add_to_array_continue
+	jmp .append_array_continue
 
-	.add_to_array_error:
+	.append_array_error:
 	movq $-1, %rax
 
-	.add_to_array_exit:
+	.append_array_exit:
 	popq %r13
 	popq %rbx
 	popq %r12
 	popq %rbp
 	ret
 
+_add_to_array:
+	pushq %rbp
+	movq %rsp, %rbp
+	pushq %rbx
+	pushq %r12
+	#rdi: pointer,
+	#rsi: element,
+	#rdx: index,
 
+	movq %rdi, %rbx
+
+	movq 24(%rbx), %rax
+	cmpq %rdx, %rax
+	jle .add_to_array_error
+
+	movq 8(%rbx), %rax
+	mulq %rdx
+	addq (%rbx), %rax
+	movq %rax, %r12
+	
+	movq 8(%rbx), %rax
+	cmpq $1, %rax
+	je .add_to_array_byte
+	cmpq $8, %rax
+	je .add_to_array_quad
+	jmp .add_to_array_error
+
+	.add_to_array_byte:
+	movb %sil, (%r12)
+	jmp .add_to_array_done
+	.add_to_array_quad:
+	movq %rsi, (%r12)
+	
+	.add_to_array_done:
+	movq $0, %rax
+	jmp .add_to_array_exit
+
+	.add_to_array_error:
+	movq $-1, %rax
+
+	.add_to_array_exit:
+	popq %r12
+	popq %rbx
+	popq %rbp
+	ret
+
+_destroy_array:
+	pushq %rbp
+	movq %rsp, %rbp
+	pushq %rbx
+
+	movq %rdi, %rbx
+
+	movq 8(%rbx), %rax
+	mulq 16(%rbx)
+	movq %rax, %rsi
+	movq $11, %rax
+	movq (%rbx), %rdi
+	syscall
+
+	movq $11, %rax
+	movq %rbx, %rdi
+	movq $header_size, %rsi
+	syscall
+
+	xorq %rax, %rax
+
+	popq %rbx
+	popq %rbp
+	ret
