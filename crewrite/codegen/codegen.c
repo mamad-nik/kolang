@@ -125,7 +125,7 @@ typedef struct {
     Code_buffer* epilogue;
 } Proc_cx;
 
-Proc_cx* proc_cx_init(char* name) {
+Proc_cx* proc_cx_init(char* name, Table* st) {
     if (!name) return NULL;
     
     Proc_cx* cx = malloc(sizeof(Proc_cx));
@@ -161,7 +161,7 @@ Proc_cx* proc_cx_init(char* name) {
     cx->name = str;
     cx->stack_size = 0;
     cx->current_offset = -8;
-    cx->locals = NULL;
+    cx->locals = st;
     return cx;
 }
 
@@ -260,7 +260,6 @@ void prologue_init(Proc_cx* cx) {
 void epilogue_init(Proc_cx* cx) {
     Code_buffer* cb = cx->epilogue;
     cb = code_buf_append(cb, ".L%s_epilogue:\n"
-            "   movq %%rbp, %%rsp\n"
             "   popq %%rbp\n"
             "   ret\n",
             cx->name);
@@ -436,10 +435,11 @@ void add_start(Code_gen* cg) {
             "    syscall\n");
 }
 
-FILE* codegen(AST_node* tree, FILE* file) {
-    if (!tree || !file) return NULL;
+FILE* codegen(AST_node* tree, FILE* file, Table* symbol_table) {
+    if (!tree || !file || !symbol_table) return NULL;
     Code_gen* cg = code_gen_init(file);
     if (!cg) return NULL;
+
 
     generate_program(cg, tree);
     if (is_runnable) add_start(cg);

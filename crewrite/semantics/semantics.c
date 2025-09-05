@@ -888,6 +888,7 @@ int sem_if(AST_node* tree) {
     if (!tree) return 0;
 
     if (tree->type == AST_IF_ELSE) {
+        scope = SCOPE_TEMPORARY;
         if (!tree->left_child || !tree->right_child) sem_panic_parser_error();
         if (!sem_if(tree->left_child)) sem_panic("invalid if statement");
         if (!sem_if(tree->right_child)) sem_panic("invalid if statement");
@@ -989,9 +990,11 @@ int sem_for(AST_node* tree) {
     if (!tree) return 0;
 
     if (tree->type != AST_FOR) return 0;
+
+    int control = sem_for_control(tree->left_child);
     
     int statements =  sem_statements(tree->right_child);
-    return statements;
+    return statements & control;
 }
 
 int sem_func_call_params(AST_node* tree, Type_info** params, int nparams) {

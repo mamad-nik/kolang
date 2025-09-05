@@ -256,6 +256,49 @@ _add_to_array:
 	popq %rbx
 	popq %rbp
 	ret
+#rdi: pointer, rsi: index
+_get_array_value:
+	pushq %rbp
+	movq %rsp, %rbp
+	pushq %rbx
+	pushq %r12
+	pushq %r13
+	
+	movq %rdi, %rbx
+	movq %rsi, %r12
+
+	movq 24(%rbx), %rax
+	cmpq %rsi, %rax
+	jle .get_array_value_error
+
+	movq 8(%rbx), %rax
+	mulq %r12
+	addq (%rbx), %rax
+	movq %rax, %r13
+
+	movq 8(%rbx), %rax
+	cmpq $1, %rax
+	je .get_array_byte
+	cmpq $8, %rax
+	je .get_array_quad
+	jmp .get_array_value_error
+
+	.get_array_byte:
+	movb (%r13), %al
+	jmp .get_array_value_exit
+
+	.get_array_quad:
+	movq (%r13), %rax
+	jmp .get_array_value_exit
+	
+	.get_array_value_error:
+	movq $-1, %rax
+	.get_array_value_exit:
+	popq %r13
+	popq %r12
+	popq %rbx
+	popq %rbp
+	ret
 
 _destroy_array:
 	pushq %rbp
