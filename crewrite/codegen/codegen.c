@@ -12,6 +12,7 @@ int cg_switch_op(AST_type op)  {
 int generate_pointer(Code_gen* cg, char* name) {
     if (!cg || !name) return 0;
 }
+
     
 int generate_struct(Code_gen* cg, char* name) {
     if (!cg || !name) return 0;
@@ -188,6 +189,9 @@ int generate_gvars(Code_gen* cg) {
                             "%s:\n"
                             "   .space %d\n\n",
                             align, symbol->name, type_size);
+                    char str[1000];
+                    sprintf(str, "%s(%%rip)", symbol->name);
+                    symbol->loc = strdup("%s(%%rip)");
                 }
             }
             entry = entry->next;
@@ -272,7 +276,7 @@ int generate_exp(Code_gen* cg, AST_node* expr) {
                     "   popq %%rax\n"
                     "   cqo\n"
                     "   idivq %%rbx\n"
-                    "   movq %%rdx, %%rax"
+                    "   movq %%rdx, %%rax\n"
                     "   popq %%rdx\n");
             break;
         default:
@@ -372,8 +376,8 @@ void add_start(Code_gen* cg) {
     cg->global = code_buf_append(cg->global, ".global _start\n");
     code_buf_append(cg->text, "_start:\n"
             "    call main\n"
-            "    mov %rax, %rdi\n"
-            "    mov $60, %rax\n"
+            "    mov %%rax, %%rdi\n"
+            "    mov $60, %%rax\n"
             "    syscall\n");
 }
 

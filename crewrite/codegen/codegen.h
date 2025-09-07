@@ -21,6 +21,16 @@ Code_buffer* code_buf_concat(Code_buffer* dest, Code_buffer* src);
 void code_buf_destroy(Code_buffer* cb);
 void code_buf_write_to_file(Code_buffer* cb, FILE* fd);
 
+typedef struct Epilogue_entry{
+    char* instruction;
+    struct Epilogue_entry* next;
+} Epilogue_entry;
+
+typedef struct {
+    Epilogue_entry* top;
+    int count;
+} Epilogue_stack;
+
 typedef struct {
     char* name; 
     int stack_size;
@@ -29,10 +39,25 @@ typedef struct {
     Code_buffer* prologue;
     Code_buffer* body;
     Code_buffer* epilogue;
+    Epilogue_stack* epilogue_stack;
 } Proc_cx;
 
 Proc_cx* proc_cx_init(char* name, Table* st);
 void proc_cx_destroy(Proc_cx* cx);
+
+
+typedef struct {
+    char* loc;
+    int is_in_use;
+    int size;
+    int align;
+} Temp;
+
+typedef struct {
+    Temp** temp;
+    int temp_counter;
+    int capacity;
+} Temps;
 
 typedef struct {
     FILE* output;
@@ -46,8 +71,9 @@ typedef struct {
 
     Table* global_vars;
     int label_counter;
-    Table* temps;
-    int temp_counter;
+    Temps* temps; 
+
+    Table* innest_scope;
 
     int current_temp_offset;
 } Code_gen;
