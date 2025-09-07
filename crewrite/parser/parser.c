@@ -667,11 +667,9 @@ AST_node* parse_argument_types() {
         tokens_p++;
         return type_tree;
     }
-    AST_node* symbol_tree = parse_struct_def();
-    if (symbol_tree) return symbol_tree;
 
     if ((*tokens_p)->id == SYMBOL) {
-        symbol_tree = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL);
+        AST_node* symbol_tree = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL);
         if (symbol_tree == NULL) parser_panic("error tree creation");
         tokens_p++;
         return symbol_tree;
@@ -719,6 +717,66 @@ AST_node* parse_argument() {
     return tmp_node;
 }
 
+AST_node* parse_type_argument_types() {
+    if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
+    if (switch_type((*tokens_p)->id)) {
+        AST_node* type_tree =
+            init_tree(map_type((*tokens_p)->id), (*tokens_p)->str, NULL, NULL);
+        if (type_tree == NULL) parser_panic("error tree creation"); 
+        tokens_p++;
+        return type_tree;
+    }
+    AST_node* symbol_tree = parse_struct_def();
+    if (symbol_tree) return symbol_tree;
+
+    if ((*tokens_p)->id == SYMBOL) {
+        symbol_tree = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL);
+        if (symbol_tree == NULL) parser_panic("error tree creation");
+        tokens_p++;
+        return symbol_tree;
+    }
+   return NULL; 
+}
+
+AST_node* parse_type_argument_pointer() {
+    if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
+
+    AST_node* head_pointer = NULL;
+    AST_node* last_pointer = NULL;
+    while ((*tokens_p)->id == POINTER) {
+        AST_node* pointer_tree = init_tree(AST_POINTER, (*tokens_p)->str, NULL, NULL);
+        if (pointer_tree == NULL) parser_panic("init tree error");
+        if (!head_pointer) head_pointer = pointer_tree;
+        if (!last_pointer) last_pointer = pointer_tree;
+        else {
+            last_pointer->left_child = pointer_tree;
+            last_pointer = last_pointer->left_child;
+        }
+        tokens_p++;
+    }
+    AST_node* types = parse_type_argument_types();
+    if (types == NULL) parser_panic("error parsing argument types");
+    if (head_pointer) {
+        last_pointer->left_child = types;
+        types = head_pointer;
+    }
+    return types;
+}
+AST_node* parse_type_argument() {
+    if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
+    
+    if ((*tokens_p)->id != SYMBOL) return NULL;
+    AST_node* symbol_tree = init_tree(AST_SYMBOL, (*tokens_p)->str, NULL, NULL);
+    if (symbol_tree == NULL) parser_panic("error tree creation");
+    tokens_p++;
+
+    AST_node* pointer_tree = parse_type_argument_pointer();
+    if (pointer_tree == NULL) parser_panic("error parsing argument pointers");
+    
+    AST_node* tmp_node = init_tree(AST_TBF, "", symbol_tree, pointer_tree);
+    if (tmp_node == NULL) parser_panic("error tree creation");
+    return tmp_node;
+}
 AST_node* parse_type_def() { 
     if(tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
 
@@ -726,7 +784,7 @@ AST_node* parse_type_def() {
     char* value = (*tokens_p)->str;
     tokens_p++;
 
-    AST_node* arg_node = parse_argument();
+    AST_node* arg_node = parse_type_argument();
     if (arg_node == NULL) parser_panic("error parsing type arguments");
     arg_node->type = AST_TYPE;
     arg_node->value = value;
@@ -880,8 +938,20 @@ AST_node* parse_if() {
     if ((*tokens_p)->id != IF) return NULL;
     tokens_p++;
 
+    int par = 0;
+    if ((*tokens_p)->id == OPEN_PAR) {
+        printf("no need for paranthesis around if control statement\n");
+        par++;
+        tokens_p++;
+    }
+
     AST_node* cond = parse_conditional();
-    if (!cond) parser_panic("expexted a conditional exp");
+    if (!cond) parser_panic("expected a conditional exp");
+
+    if (par) {
+        if ((*tokens_p)->id != CLOSE_PAR) parser_panic("if you want to have paranthesis around an if control statement however, you have to close it");
+        tokens_p++;
+    }
 
     if ((*tokens_p)->id != OPEN_CURL) {
         if ((*tokens_p)->id == ASSIGN) parser_panic("assignment inside control statement of if is not permitted. did you mean ==?");
@@ -924,12 +994,24 @@ AST_node* parse_for_init() {
 
 AST_node* parse_for_control() {
     if (tokens_p == NULL || (*tokens_p)->id == EOFS) return NULL;
+
+    int par = 0;
+    if ((*tokens_p)->id == OPEN_PAR) {
+        printf("no need for paranthesis around for control statement\n");
+        par++;
+        tokens_p++;
+    }
     
     Token** tokens = tokens_p;
     AST_node* cond = parse_conditional();
-    if (cond && (*tokens_p)->id == OPEN_CURL) {
+    if (cond && ((*tokens_p)->id == OPEN_CURL || (*tokens_p)->id == CLOSE_PAR)) {
+        if (par) {
+            if ((*tokens_p)->id != CLOSE_PAR) parser_panic("if you want to have paranthesis around a for control statement however, you have to close it");
+            tokens_p++;
+        }
         cond = init_tree(AST_WHILE, "", cond, NULL);
         if (!cond) parser_panic("error tree creation");
+
         return cond;
     }
     
@@ -965,6 +1047,12 @@ AST_node* parse_for_control() {
 
     seq->right_child = inc_dec;
     head->right_child = seq;
+
+
+    if (par) {
+        if ((*tokens_p)->id != CLOSE_PAR) parser_panic("if you want to have paranthesis around a for control statement however, you have to close it");
+        tokens_p++;
+    }
 
     head = init_tree(AST_FOR, "", head, NULL);
     if (!head) parser_panic("error tree creation");

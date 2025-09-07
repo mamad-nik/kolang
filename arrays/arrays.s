@@ -1,17 +1,15 @@
 .section .data
-.set default_size, 10
-.set header_size, 32
+.set array_header_size, 32
 error_resize_array_str: .asciz "error resizing array, mremap"#29
 error_create_array_str: .asciz "error creating array, mmap"#26
 .section .text
-.extern _resolve_type
-.extern _err_exit
 .global _create_array
 .global _destroy_array
 .global _resize_array
 .global _append_array
 .global _add_to_array
 .global _destroy_array
+.global _get_array_value
 #header: data pointer, elem_size, capacity, number of elements 
 _create_array:
 	pushq %rbp
@@ -46,7 +44,7 @@ _create_array:
 
 	movq $9, %rax
 	xorq %rdi, %rdi
-	movq $header_size, %rsi
+	movq $array_header_size, %rsi
 	movq $0x3, %rdx 
 	movq $0x22, %r10 
 	xorq %r8, %r8 
@@ -284,6 +282,7 @@ _get_array_value:
 	jmp .get_array_value_error
 
 	.get_array_byte:
+	xorq %rax, %rax
 	movb (%r13), %al
 	jmp .get_array_value_exit
 
@@ -316,7 +315,7 @@ _destroy_array:
 
 	movq $11, %rax
 	movq %rbx, %rdi
-	movq $header_size, %rsi
+	movq $array_header_size, %rsi
 	syscall
 
 	xorq %rax, %rax

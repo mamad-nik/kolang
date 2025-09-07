@@ -26,6 +26,7 @@ typedef struct {
     int stack_offset;
     int size_bytes;
     int is_initialized;
+    int temp_no;
 
     int param_count;
     int local_stack_size;

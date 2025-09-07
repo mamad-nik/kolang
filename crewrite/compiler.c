@@ -123,8 +123,8 @@ int main(int argc, char *argv[]) {
     semantics(tree);
     /*char* str = target_name(argv[1]);
     FILE* file = create_file(str);
-    codegen(tree, file);
     fclose(file);*/
+    //codegen(tree, stdout, global_symbol_table);
     
     return 0;
 }

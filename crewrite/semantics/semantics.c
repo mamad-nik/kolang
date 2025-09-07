@@ -4,11 +4,14 @@ typedef struct {
     char* name;
     Symbol* gt_entry_symbol;
     Table* st;
+    Table* inner_scope;
 } Cproc;
 
 Type_info* sem_func_call(AST_node* tree);
 Type_info* sem_struct_access(AST_node* tree);
 Type_info* sem_argument(AST_node* tree);
+Type_info* sem_argument_pointer(AST_node* tree);
+Type_info* sem_type_argument(AST_node* tree);
 Type_info* sem_array_def(AST_node* tree);
 Type_info* sem_exp(AST_node* tree);
 Type_info* sem_deref(AST_node* tree);
@@ -75,11 +78,29 @@ int switch_op(AST_type op)  {
     return 0;
 }
 
+Table* set_table() {
+    if (scope == SCOPE_TEMPORARY) {
+        if (!current_proc->inner_scope) return NULL;
+        return current_proc->inner_scope; 
+    }
+    if (scope == SCOPE_LOCAL) return current_proc->st; 
+    return NULL;
+}
+
+
 Symbol* check_for_a_symbol(char* str) { 
     if (!str) return NULL;
 
+    Entry* entry = NULL;
+    if (current_proc->inner_scope) {
+        entry = lookup_entry(current_proc->inner_scope, str);
+        if (entry) {
+            Symbol* symbol = (Symbol *) entry->value;
+            return symbol;
+        }
+    }
 
-    Entry* entry = lookup_entry(current_proc->st, str);
+    entry = lookup_entry(current_proc->st, str);
     if (entry) {
         Symbol* symbol = (Symbol *) entry->value;
         return symbol;
@@ -122,7 +143,7 @@ Struct_field* sem_struct_field(AST_node* tree) {
     if (tree->type != AST_STRUCT_FIELD) return NULL;
     
     char *str = tree->left_child->value;
-    Type_info* arg = sem_argument(tree);
+    Type_info* arg = sem_type_argument(tree);
     if (!arg) sem_panic("invalid struct field");
 
     Struct_field* field = malloc(sizeof(Struct_field));
@@ -190,7 +211,7 @@ Type_info* sem_struct_def(AST_node* tree) {
     return structu;
 }
 
-Type_info* sem_argument_type(AST_node* tree) {
+Type_info* sem_type_argument_type(AST_node* tree) {
     if (!tree) return NULL;
 
     if (switch_ast_type(tree->type)) 
@@ -198,6 +219,66 @@ Type_info* sem_argument_type(AST_node* tree) {
         
     if (tree->type == AST_STRUCT) return sem_struct_def(tree);
 
+    if (tree->type == AST_SYMBOL) {
+        Type_info* ti = get_type_str(tree->value);
+        if (!ti) sem_panic("undefined type");
+        return ti;
+    }
+    return NULL;
+}
+
+Type_info* sem_type_argument_pointer(AST_node* tree) {
+    if (!tree) return NULL;
+
+    Type_info* output = NULL;
+
+    if (tree->type == AST_POINTER) {
+        char* name = malloc(sizeof(char)*10);
+        if (!name) sem_panic_allocation();
+        rand_str(name, 10);
+        if (!name) sem_panic_allocation();
+        Type_info* pointed_to = sem_argument_pointer(tree->left_child);
+        output = create_pointer_type(name, pointed_to);
+        return output;
+    } else {
+        output = sem_type_argument_type(tree); 
+        if (!output) sem_panic("invalid argument type");
+        return output;
+    }
+    return output;
+}
+
+Type_info* sem_type_argument(AST_node* tree) {
+    if (!tree) return NULL;
+    
+    if (!tree->right_child) sem_panic_parser_error();
+    tree = tree->right_child; 
+    Type_info* pointer = sem_type_argument_pointer(tree);
+    if (!pointer) sem_panic("invalid argument type");
+    
+    return pointer;
+}
+
+Type_info* sem_type_def(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (tree->type != AST_TYPE) return NULL;
+    Type_info* type = sem_type_argument(tree);
+    if (!type) sem_panic_allocation();
+
+    char* str = strdup(tree->left_child->value);
+    if (!str) sem_panic_allocation();
+    type->name = str;
+    if(!add_to_custom(type)) sem_panic_allocation();
+    return type;
+}
+
+Type_info* sem_argument_type(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (switch_ast_type(tree->type)) 
+        return get_basic_type(map_basic_type(tree->type));
+        
     if (tree->type == AST_SYMBOL) {
         Type_info* ti = get_type_str(tree->value);
         if (!ti) sem_panic("undefined type");
@@ -238,19 +319,6 @@ Type_info* sem_argument(AST_node* tree) {
     return pointer;
 }
 
-Type_info* sem_type_def(AST_node* tree) {
-    if (!tree) return NULL;
-
-    if (tree->type != AST_TYPE) return NULL;
-    Type_info* type = sem_argument(tree);
-    if (!type) sem_panic_allocation();
-
-    char* str = strdup(tree->left_child->value);
-    if (!str) sem_panic_allocation();
-    type->name = str;
-    if(!add_to_custom(type)) sem_panic_allocation();
-    return type;
-}
 void sem_gvar_def(AST_node* tree) {
     if (!tree) return;
 
@@ -364,11 +432,7 @@ Type_info* sem_struct_value(AST_node* tree) {
         tree = tree->right_child;
     }
 
-    if (!str) {
-        str = malloc(sizeof(char)*10);
-        if (!str) sem_panic_allocation();
-        rand_str(str, 10);
-    }
+    if (!str) str = "";
     Type_info* type = create_struct_type(str, fields, nfields);
     if (!type) sem_panic_allocation();
     return type;
@@ -458,6 +522,7 @@ Type_info* sem_exp1(AST_node* tree) {
             Type_info* type = sem_exp1(tree->left_child);
             if (!type) sem_panic_parser_error();
             if (!sem_is_num(type)) sem_panic("invalid operand to a unary operator");
+            tree->attr = type->data.basic;
             return type;
         }
     }
@@ -468,6 +533,7 @@ Type_info* sem_exp1(AST_node* tree) {
             Type_info* type = sem_exp1(tree->left_child);
             if (!type) sem_panic_parser_error();
             if (!sem_is_bool(type)) sem_panic("invalid operand to a unary operator");
+            tree->attr = type->data.basic;
             return type;
         }
     }
@@ -486,8 +552,11 @@ Type_info* sem_exp1(AST_node* tree) {
         if (type_check(lhs, rhs) != 1) 
             sem_panic("can't add float to int. also implicit typing is not done.");
 
-        if (t == AST_GT || t == AST_LT ||
-            t == AST_GE || t == AST_LE) return get_basic_type(BASIC_BOOL);
+        if (t == AST_GT || t == AST_LT || t == AST_GE || t == AST_LE) {
+            tree->attr = BASIC_BOOL;
+            return get_basic_type(BASIC_BOOL);
+        }
+        tree->attr = lhs->data.basic;
         return lhs;
 
     } else if (t == AST_AND || t == AST_OR ) {
@@ -498,6 +567,7 @@ Type_info* sem_exp1(AST_node* tree) {
 
         if (!sem_is_bool(lhs) || !sem_is_bool(rhs)) 
             sem_panic("either side of a boolean operation is not a boolean expression");
+        tree->attr = lhs->data.basic;
         return lhs;
 
     } else if (t == AST_NEQ || t == AST_EQ)  {
@@ -508,7 +578,7 @@ Type_info* sem_exp1(AST_node* tree) {
         
         if (type_check(lhs, rhs) != 1)
             sem_panic("both sides of a equality operation must have same types"); 
-        
+        tree->attr = BASIC_BOOL;
         return get_basic_type(BASIC_BOOL);
     }
             
@@ -695,7 +765,11 @@ int sem_statement(AST_node* tree) {
     if (sem_assignment(tree)) return 1;
     if (sem_array_def(tree)) return 1;
     Symbol* symbol = sem_var_def(tree); 
-    if (symbol) return insert_entry(current_proc->st, symbol->name, symbol);
+    if (symbol) {
+        Table* table = set_table();
+        if (!table) sem_panic("scoping error");
+        return insert_entry(table, symbol->name, symbol);
+    }
 
     if (sem_if(tree)) return 1;
     if (sem_for(tree)) return 1;
@@ -776,7 +850,9 @@ Symbol* sem_var_def(AST_node* tree) {
 
     symbol = create_symbol(str, type, scope);
     if (!symbol) sem_panic_allocation();
-    if (!insert_entry(current_proc->st, str, symbol)) sem_panic_parser_error();
+    Table* table = set_table();
+    if (!table) sem_panic("scoping error");
+    if (!insert_entry(table, str, symbol)) sem_panic_parser_error();
     return symbol;
 }
 
@@ -901,13 +977,31 @@ int sem_if(AST_node* tree) {
 
         if (!type_compat(type, BASIC_BOOL))
             sem_panic("expression in if control statement must be boolean");
-        
+           
+        Table* table = create_table();
+        if (!table) sem_panic_allocation();
+        Table* outer_table = current_proc->inner_scope;
+        current_proc->inner_scope = table;
+
         if (!tree->right_child) sem_panic_parser_error();
         if (!sem_statements(tree->right_child)) sem_panic("invalid statement in if body");
+
+        current_proc->inner_scope = outer_table;
+        tree->symbols = table;
+
         return 1;
     } else if (tree->type == AST_ELSE) {
         if (sem_if(tree->left_child)) return 1;
+
+        Table* table = create_table();
+        if (!table) sem_panic_allocation();
+        Table* outer_table = current_proc->inner_scope;
+        current_proc->inner_scope = table;
+
         if (!sem_statements(tree->left_child)) sem_panic("invalid statement in else body");
+        current_proc->inner_scope = outer_table;
+        tree->symbols = table;
+        return 1;
     }
     return 0;
 
@@ -938,7 +1032,7 @@ int sem_for_control_helper(AST_node* tree) {
     if (!tree->right_child) return 0;
     AST_node* init = tree->left_child;
 
-    Type_info* init_type = sem_place(init);
+    Type_info* init_type = sem_assignment(init);
     if (!init_type) return 0;
     
     if (!type_compat(init_type, BASIC_INT))
@@ -980,7 +1074,7 @@ int sem_for_control(AST_node* tree) {
         if (!tree->left_child) sem_panic_parser_error();
         tree = tree->left_child;
         if(sem_for_control_helper(tree)) return 1;
-        return 0;
+        sem_panic("invalid expr in for control");
     } else sem_panic("invalid for control");
     
     return 0;
@@ -991,10 +1085,18 @@ int sem_for(AST_node* tree) {
 
     if (tree->type != AST_FOR) return 0;
 
+    Table* table = create_table();
+    if (!table) sem_panic_allocation();
+    Table* outer_table = current_proc->inner_scope;
+    current_proc->inner_scope = table;
+
     int control = sem_for_control(tree->left_child);
     
     int statements =  sem_statements(tree->right_child);
-    return statements & control;
+    
+    tree->symbols = table; 
+    current_proc->inner_scope = outer_table;
+    return 1;
 }
 
 int sem_func_call_params(AST_node* tree, Type_info** params, int nparams) {
@@ -1071,7 +1173,9 @@ Type_info* sem_array_def(AST_node* tree) {
     Symbol* symbol = create_symbol(str, array, scope);
     if (!symbol) sem_panic_parser_error();
 
-    if (!insert_entry(current_proc->st, str, symbol)) sem_panic_allocation();
+    Table* table = set_table();
+    if (!table) sem_panic("scoping error");
+    if (!insert_entry(table, str, symbol)) sem_panic_allocation();
 
     return array;
 }

@@ -132,34 +132,11 @@ char* get_basic_type_name(Basic_type basic) {
     }
     return NULL;
 }
-Basic_type parse_basic_type(char* name) {
-    if (!name) return -1;
-    if (strcmp(name, "int") == 0) return BASIC_INT;
-    if (strcmp(name, "bool") == 0) return BASIC_BOOL;
-    if (strcmp(name, "float") == 0) return BASIC_FLOAT;
-    if (strcmp(name, "byte") == 0) return BASIC_BYTE;
-    if (strcmp(name, "string") == 0) return BASIC_STRING;
-    if (strcmp(name, "void") == 0) return BASIC_VOID;
-    return -1;
-}
-Basic_type map_basic_type(AST_type id) {
-    if (id == AST_INT) return BASIC_INT;
-    if (id == AST_BOOL) return BASIC_BOOL;
-    if (id == AST_FLOAT) return BASIC_FLOAT;
-    if (id == AST_BYTE) return BASIC_BYTE;
-    if (id == AST_STRING) return BASIC_STRING;
-    return -1;
-}
-Basic_type map_basic_val(AST_type id) {
-    if (id == AST_INTEGER_VAL) return BASIC_INT;
-    if (id == AST_BOOL_VAL) return BASIC_BOOL;
-    if (id == AST_STR_VAL) return BASIC_STRING;
-    if (id == AST_FLOAT_VAL) return BASIC_FLOAT;
-    if (id == AST_BYTE_VAL) return BASIC_BYTE;
-    return BASIC_VOID;
-}
 int get_basic_type_size(Basic_type b) {
     return global_types->basic_types[b]->size_byte;
+}
+int get_basic_type_align(Basic_type b) {
+    return global_types->basic_types[b]->alignment;
 }
 
 Type_info* create_pointer_type(char* name, Type_info* pointed_to) {
@@ -214,7 +191,6 @@ Type_info* create_array_type(char* name, Type_info* element_type, int no_elems) 
 
 Type_info* create_struct_type(char* name, Struct_field** fields, int no_fields) {
      if (!name || !fields || no_fields < 1) return NULL;
-     
 
     Type_info* strc = malloc(sizeof(Type_info));
     if(!strc) return NULL;
@@ -224,7 +200,6 @@ Type_info* create_struct_type(char* name, Struct_field** fields, int no_fields) 
         free(strc);
         return NULL;
     }
-    
 
     int tsize = 0;
     int talign = 0;
@@ -288,7 +263,7 @@ int struct_type_check(Type_info* t1, Type_info* t2) {
         if (type_check(t1->data.structure.fields[i]->type, 
                     t2->data.structure.fields[i]->type) != 1) return 0;
     
-    return 1;
+    return name_check;
 }
         
 

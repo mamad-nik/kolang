@@ -3,7 +3,6 @@
 
 #include<stdlib.h>
 #include<string.h>
-#include"../ast/ast.h"
 
 typedef enum { 
     TC_BASIC,
@@ -68,7 +67,6 @@ typedef struct {
 
 extern Type_registry* global_types;
 
-Basic_type map_basic_val(AST_type id);
 
 Type_registry* init_type_registry();
 void destroy_type_registry(Type_registry* registry);
@@ -76,6 +74,7 @@ Type_registry* add_to_custom(Type_info* ti);
 
 Type_info* get_basic_type(Basic_type basic);
 int get_basic_type_size(Basic_type basic);
+int get_basic_type_align(Basic_type b); 
 char* get_basic_type_name(Basic_type basic);
 Basic_type parse_basic_type(char* name);
 
@@ -86,6 +85,5 @@ Type_info* create_func_type(char* name, Type_info* ret_type, Type_info** params,
 Type_info* get_type_str(char* name);
 
 int type_check(Type_info* t1, Type_info* t2);
-Basic_type map_basic_type(AST_type type);
 #endif
 

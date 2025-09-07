@@ -1,5 +1,7 @@
 #ifndef ASTH
 #define ASTH
+#include"../type_system/type_system.h"
+#include"../symbol_table/symbol_table.h"
 
 typedef enum {
     AST_PROC,
@@ -70,20 +72,16 @@ typedef enum {
     AST_BYTE_VAL 
 } AST_type;
 
-typedef struct Expr_tree{
-    int is_optor;
-    int is_evalble;
-    char* value;
-    struct Expr_tree* right;
-    struct Expr_tree* left;
-} Expr_tree;
-
 typedef struct AST_node{
     AST_type type;
     char* value;
     struct AST_node* left_child;
     struct AST_node* right_child;
+    Basic_type attr;
+    Table* symbols;
 } AST_node;
 
+Basic_type map_basic_type(AST_type type);
+Basic_type map_basic_val(AST_type id);
 AST_node* init_tree(AST_type type, char* value, AST_node* left_child, AST_node* right_child);
 #endif

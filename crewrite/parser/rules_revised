@@ -5,7 +5,7 @@ load ::= 'load' '(' string_val ')'
 combs ::= top_defs procs | procs
 top_defs ::= { top_def }
 top_def ::= var_def | type_def
-type_def ::= 'type' argument
+type_def ::= 'type' type_argument
 
 procs ::= { proc_def }
 proc_def ::= 'proc' symbol '(' [ arguments ] ')' [ output ] '{' statements '}'
@@ -20,9 +20,13 @@ place ::= array_def | var_def | struct_access | array_access | deref | symbol
 var_def ::= 'var' argument
 array_def ::= var_def '[' [ integer_val ] ']'
 
+type_argument ::= symbol type_argument_pointer
+type_argument_pointer ::= { 'pointer' } argument_types | type_argument_types
+type_argument_types ::= type | struct_def | symbol
+
 argument ::= symbol argument_pointer
 argument_pointer ::= { 'pointer' } argument_types
-argument_types ::= type | struct_def | symbol
+argument_types ::= type | symbol
 
 struct_def ::= 'struct' '{' { argument } '}'
 struct_access ::= symbol '.' { struct_access_tag }
