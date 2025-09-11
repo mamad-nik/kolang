@@ -182,6 +182,8 @@ void epilogue_stack_destroy(Epilogue_stack* stack) {
     free(stack);
 }
 
+const char* caller_saved[] = {"%%rdi", "%%rsi", "%%rdx", "%%rcx", "%%r8", "%%r9", "%%r10", "%%r11"};
+const char* callee_saved[] = {"%%rbx",  "%%r12", "%%r13", "%%r14", "%%r15"};
 
 Proc_cx* proc_cx_init(char* name, Table* st) {
     if (!name) return NULL;
@@ -217,9 +219,11 @@ Proc_cx* proc_cx_init(char* name, Table* st) {
     }
     cx->name = str;
     cx->stack_size = 0;
-    cx->current_offset = -8;
+    cx->current_offset = 8;
     cx->locals = st;
-    
+    for (int i = 0; i < 5; i++) cx->used_callee[i] = 0;
+    for (int i = 0; i < 8; i++) cx->used_caller[i] = 0;
+
     return cx;
 }
 
@@ -365,6 +369,17 @@ Temps* add_temp(Temps* temps, Temp* temp) {
 
     return temps;
 }
+void destroy_temps(Temps* temps) {
+    if (!temps) return;
+
+    for (int i = 0; i < temps->temp_counter; i++) {
+        free(temps->temp[i]->loc);
+        free(temps->temp[i]);
+    }
+    free(temps);
+}
+
+
 void print_temps(Code_gen* cg, Temps* temps) {
     if (!temps) return;
     for (int i = 0; i < temps->temp_counter; i++) {
@@ -391,6 +406,12 @@ int get_temp(Temps* temps, int size, int align) {
     if (!temps) return -1;
 
     return temps->temp_counter-1;
+}
+Temp* get_temp_str(Temps* temps, int number) {
+    if (!temps) return NULL;
+    if (number >= temps->temp_counter || number < 0) return NULL;
+
+    return temps->temp[number];
 }
 
 void prologue_init(Proc_cx* cx) {

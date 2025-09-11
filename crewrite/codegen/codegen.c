@@ -9,10 +9,108 @@ int cg_switch_op(AST_type op)  {
             || op == AST_GT || op == AST_LE || op == AST_GE || op == AST_EX_MARK) return 1; 
     return 0;
 }
+int gen_get_size(Type_info* type) {
+    if (!type) return -1;
+
+    switch (type->category) {
+        case (TC_STRUCT):
+            return 8;
+            break;
+        case(TC_ARRAY):
+            return 8;
+            break;
+        case(TC_POINTER):
+            return 8;
+            break;
+        case(TC_BASIC):
+            return get_basic_type_size(type->data.basic);
+            break;
+        default:
+            return -1;
+    }
+    return -1;
+}
+char* store_basic_stack(Type_info* type) {
+    if(!type) return NULL;
+
+    if(type->category != TC_BASIC) return NULL;
+
+    switch(type->data.basic) {
+        case(BASIC_INT):
+            return "movq ";
+            break;
+        case(BASIC_FLOAT):
+            return "movq ";
+            break;
+        case(BASIC_BYTE):
+            return "movzxbq ";
+            break;
+        case(BASIC_BOOL):
+            return "movzxbq ";
+            break;
+        case(BASIC_STRING):
+            return "movq ";
+            break;
+        default:
+            return NULL;
+    }
+    return NULL;
+}
+char* store_basic_temp(Type_info* type) {
+    if(!type) return NULL;
+
+    if(type->category != TC_BASIC) return NULL;
+
+    switch(type->data.basic) {
+        case(BASIC_INT):
+            return "movq ";
+            break;
+        case(BASIC_FLOAT):
+            return "movq ";
+            break;
+        case(BASIC_BYTE):
+            return "movb ";
+            break;
+        case(BASIC_BOOL):
+            return "movb ";
+            break;
+        case(BASIC_STRING):
+            return "movq ";
+            break;
+        default:
+            return NULL;
+    }
+    return NULL;
+}
+
 int generate_pointer(Code_gen* cg, char* name) {
     if (!cg || !name) return 0;
 }
 
+int generate_array(Code_gen* cg, char* name) {
+    if (!cg || !name) return 0;
+
+    Type_info* type = get_type_str(name);
+    if (!type) return 0;
+    if (type->category != TC_ARRAY) return 0;
+
+    int size = gen_get_size(type->data.array.element_type);
+    int no_elem = type->data.array.no_elements;
+
+    cg->current_proc->body = code_buf_append(cg->current_proc->body,
+            "pushq %%rbx\n");
+
+    cg->current_proc->body = code_buf_append(cg->current_proc->body,
+            "pushq %%rdi\n"
+            "pushq %%rsi\n"
+            "movq $%d, %%rdi\n"
+            "movq $%d, %%rsi\n"
+            "call _create_array"
+            "cmpq $-1, %%rax\n"
+            "je _error_memory_allocation\n"
+            "popq %%rsi\n"
+            "popq %%rdi\n", size, no_elem);
+}
     
 int generate_struct(Code_gen* cg, char* name) {
     if (!cg || !name) return 0;
@@ -144,7 +242,20 @@ int generate_destroy_struct(Code_gen* cg, AST_node* tree) {
 
 }
 int generate_vars(Code_gen* cg, AST_node* tree) {
-    if (!cg || !tree) return 0;
+    if (!cg || !tree) return -1;
+
+    Table* currt = cg->current_proc->locals;
+    if (!currt) return -1;
+
+    
+    for (int i = 0; i < currt->no_buckets; i++) {
+        Entry* entry = currt->entries[i];
+        while(entry) {
+            Symbol* symbol = (Symbol*) symbol;
+
+
+            entry = entry->next;
+        }
 
 }
 
@@ -189,9 +300,6 @@ int generate_gvars(Code_gen* cg) {
                             "%s:\n"
                             "   .space %d\n\n",
                             align, symbol->name, type_size);
-                    char str[1000];
-                    sprintf(str, "%s(%%rip)", symbol->name);
-                    symbol->loc = strdup("%s(%%rip)");
                 }
             }
             entry = entry->next;

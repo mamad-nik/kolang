@@ -8,6 +8,7 @@
 #include "../ast/ast.h"
 #include "../type_system/type_system.h"
 
+char* create_formatted_string(const char* format, ...); 
 typedef struct { 
     char* buffer;
     size_t size;
@@ -31,10 +32,20 @@ typedef struct {
     int count;
 } Epilogue_stack;
 
+Epilogue_stack* epilogue_stack_init();
+int epilogue_stack_push(Epilogue_stack* stack, const char* format, ...);
+Code_buffer* epilogue_stack_to_buffer(Epilogue_stack* stack, Code_buffer* buffer);
+void epilogue_stack_destroy(Epilogue_stack* stack);
+
+extern const char* caller_saved[];
+extern const char* callee_saved[];
+
 typedef struct {
     char* name; 
     int stack_size;
     int current_offset;
+    int used_caller[8];
+    int used_callee[5];
     Table* locals;
     Code_buffer* prologue;
     Code_buffer* body;
@@ -58,6 +69,12 @@ typedef struct {
     int temp_counter;
     int capacity;
 } Temps;
+
+
+int get_temp(Temps* temps, int size, int align);
+Temp* get_temp_str(Temps* temps, int number);
+Temps* create_temps();
+void destroy_temps(Temps* temps);
 
 typedef struct {
     FILE* output;

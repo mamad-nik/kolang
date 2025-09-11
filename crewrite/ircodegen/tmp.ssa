@@ -1,0 +1,9 @@
+type :my_str_f2 = { l }
+type :my_str = { l }
+
+data $my_int { w }
+
+function $main () {
+@start
+    
+    
