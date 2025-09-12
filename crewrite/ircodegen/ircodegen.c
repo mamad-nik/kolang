@@ -105,7 +105,7 @@ int get_align(Type_info* ti) {
     return 0;
 }
 
-char* var_def(AST_node* tree) {
+char* icg_var_def(AST_node* tree) {
     if (!tree) return NULL;
     
     Symbol* symbol = 
@@ -120,13 +120,13 @@ char* var_def(AST_node* tree) {
     return loc;
 
 }
-void set_var(char* dst, char* src, char* type) {
+void icg_set_var(char* dst, char* src, char* type) {
     if (!dst || !src || !type) return;
 
     cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
             "store%s %s, %s", type, src, dst);
 }
-char* get_var(char* name) {
+char* icg_get_var(char* name) {
     if (!name) return NULL;
 
     Symbol* symbol = icg_lookup_symbol(cg, name);
@@ -155,7 +155,7 @@ int icg_bool(char* str) {
     return -1;
 }
 
-char* func_call(AST_node* tree) {
+char* icg_func_call(AST_node* tree) {
     if (!tree) return NULL;
 
     Symbol* symbol = icg_lookup_symbol(cg, tree->value);
@@ -221,7 +221,7 @@ char* icg_primary(AST_node* tree) {
 
         }
         case (AST_SYMBOL): {
-            char* val = get_var(tree->value);
+            char* val = icg_get_var(tree->value);
             if (!val) return NULL;
             return val;
         }
@@ -389,11 +389,14 @@ char* icg_set_struct_field(char* name, char* field) {
     Type_info* type = symbol->type;
     if (!type) return NULL;
 
-    int offset;
+    int offset = 0;
     int no_fields = type->data.structure.no_fields;
     for (int i = 0; i < no_fields; i++) {
         Struct_field* strfield = type->data.structure.fields[i];
-        if (strcmp(field, strfield) == 0) offset = strfield->offset;
+        if (strcmp(field, strfield->name) == 0) { 
+            offset = strfield->offset;
+            break;
+        }
     }
     char* temp1 = new_temp();
     char* temp2 = new_temp();
@@ -402,6 +405,37 @@ char* icg_set_struct_field(char* name, char* field) {
             "   %s =l add %s, %d\n", temp1, loc, temp2, temp1, offset); 
     
     return temp2;
+}
+char* icg_get_struct_field(char* name, char* field) {
+    if (!name || !field) return NULL;
+
+    Symbol* symbol = icg_lookup_symbol(cg, name);
+    if (!symbol) return NULL;
+    char* loc = symbol->loc;
+
+    Type_info* type = symbol->type;
+    if (!type) return NULL;
+
+    int offset = 0;
+    int no_fields = type->data.structure.no_fields;
+    char* ftype;
+    for (int i = 0; i < no_fields; i++) {
+        Struct_field* strfield = type->data.structure.fields[i];
+        if (strcmp(field, strfield->name) == 0) {
+            offset = strfield->offset;
+            ftype = map_type_qbe(strfield->type);
+            break;
+        }
+    }
+    char* temp1 = new_temp();
+    char* temp2 = new_temp();
+    char* temp3 = new_temp();
+    cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
+            "   %s =l loadl %s\n" 
+            "   %s =l add %s, %d\n"
+            "   %s =%s load%s %s", temp1, loc, temp2, temp1, offset, temp3, ftype, ftype, temp2); 
+    
+    return temp3;
 }
 void icg_for(AST_node* control, AST_node* statements) {
     if (!control || !statements) return;
