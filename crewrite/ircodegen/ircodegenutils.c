@@ -131,6 +131,7 @@ Proc* proc_init(char* name, Table* st) {
         free(str);
         proc_destroy(cx);
         return NULL;
+    }
     cx->locals = st;
 
     return cx;
@@ -186,7 +187,7 @@ void cg_print(CG* cg) {
     cb_write_to_file(cg->text, cg->output);
 } 
 
-Symbol* lookup_symbol(CG* cg, char* key) {
+Symbol* icg_lookup_symbol(CG* cg, char* key) {
     if (!cg || !key) return NULL;
     Symbol* symbol = NULL;
     Entry* entry = NULL;

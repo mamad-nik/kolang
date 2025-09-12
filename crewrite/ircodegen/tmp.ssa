@@ -1,17 +1,9 @@
 export function w $main () {
 @start
-    %a =w copy 5
-    %b =w copy 6
-    %cmp =w ceqw %a, %b
-    jnz %cmp, @ifthen, @ifend
-
-@ifthen
+    %A =l alloc8 8
+    %s1 =l copy 1
+    storel %s1, %A
     ret 1
-
-@ifend
-@end
-    ret 2
-
 }
 
 

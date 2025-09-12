@@ -206,7 +206,7 @@ Type_info* sem_struct_def(AST_node* tree) {
     char* name = malloc(sizeof(char)*10);
     if (!name) sem_panic_allocation();
     rand_str(name, 10);
-    Type_info*  structu = create_struct_type(name, fields, nfields);
+    Type_info* structu = create_struct_type(name, fields, nfields);
     if (!structu) sem_panic_allocation();
     return structu;
 }

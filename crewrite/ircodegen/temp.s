@@ -3,7 +3,7 @@
 main:
 	pushq %rbp
 	movq %rsp, %rbp
-	movl $2, %eax
+	movl $1, %eax
 	leave
 	ret
 .type main, @function

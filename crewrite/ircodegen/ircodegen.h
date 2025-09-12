@@ -48,5 +48,5 @@ typedef struct {
 CG* cg_init(FILE* output, Table* gv);
 void cg_destroy(CG* cg);
 void cg_print(CG* cg);
-Symbol* lookup_symbol(CG* cg, char* key);
+Symbol* icg_lookup_symbol(CG* cg, char* key);
 #endif
