@@ -44,6 +44,9 @@ char* map_basic_qbe(Basic_type basic) {
         case BASIC_STRING:
             return "l";
             break;
+        case BASIC_VOID:
+            return "";
+            break;
         default: 
             return NULL;
             break;
@@ -186,13 +189,14 @@ char* icg_func_call(AST_node* tree) {
         if (!partype) return NULL;
         char* temp = icg_exp(tree->left_child);
         if (!temp) return NULL;
-        params = create_formatted_string("%s%s%s %s, ",
-                ret_val, params, partype, temp);
+        params = create_formatted_string("%s%s %s, ",
+                 params, partype, temp);
         tree = tree->right_child;
+        i++;
     }
 
     cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
-            "   call %s(%s)\n", symbol->name, params);
+            "   %scall %s(%s)\n", ret_val, symbol->name, params);
     return tmp;
 }
 char* icg_primary(AST_node* tree) {
@@ -379,7 +383,7 @@ char* icg_create_struct(char* name) {
     
     return temp;
 }
-char* icg_set_struct_field(char* name, char* field) {
+char* icg_set_struct_access(char* name, char* field) {
     if (!name || !field) return NULL;
 
     Symbol* symbol = icg_lookup_symbol(cg, name);
@@ -406,7 +410,7 @@ char* icg_set_struct_field(char* name, char* field) {
     
     return temp2;
 }
-char* icg_get_struct_field(char* name, char* field) {
+char* icg_get_struct_access(char* name, char* field) {
     if (!name || !field) return NULL;
 
     Symbol* symbol = icg_lookup_symbol(cg, name);
@@ -436,6 +440,70 @@ char* icg_get_struct_field(char* name, char* field) {
             "   %s =%s load%s %s", temp1, loc, temp2, temp1, offset, temp3, ftype, ftype, temp2); 
     
     return temp3;
+}
+char* icg_get_deref(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (tree->type != AST_VALUE) return NULL; 
+
+    if (tree->type == AST_LIB) tree = tree->left_child;
+    char* str = "";
+    switch (tree->type) {
+        case (AST_ARRAY_ACCESS):
+            break;
+        case (AST_STRUCT):
+            str = icg_get_struct_access(tree->value,
+                    tree->left_child->value);
+            char* temp = new_temp();
+            //cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
+            //        "   %s = %s
+            break;
+        case (AST_SYMBOL): {
+            Symbol* symbol = icg_lookup_symbol(cg, tree->value);
+            char* loc = symbol->loc;
+            char* type = map_type_qbe(symbol->type);
+            temp = new_temp();
+            cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
+                    "   %s =%s load%s %s\n", temp, type, type, loc);  
+            return temp;
+            break;
+        }
+
+    }
+
+
+}
+
+int icg_inc_dec(AST_node* tree) {
+    if (!tree) return 0;
+    if (tree->type != AST_INC && tree->type != AST_DEC) return 0;
+    if (!tree->left_child) return 0;
+
+    AST_node* varnode = tree->left_child;
+    if (varnode->type != AST_SYMBOL) return 0;
+    Symbol* symbol = icg_lookup_symbol(cg, varnode->value);
+    if (!symbol) return 0;
+
+    char* cur = icg_get_var(varnode->value);
+    if (!cur) return 0;
+
+    char* one = new_temp();
+    cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer,
+            "   %s =l copy %d\n", one, 1);
+
+    char* res = new_temp();
+    char* t = map_type_qbe(symbol->type);
+    if (!t) t = "l";
+    if (tree->type == AST_INC) {
+        cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer,
+                "   %s =%s add %s, %s\n", res, t, cur, one);
+    } else {
+        cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer,
+                "   %s =%s sub %s, %s\n", res, t, cur, one);
+    }
+
+    icg_set_var(symbol->loc, res, t);
+    return 1;
 }
 void icg_for(AST_node* control, AST_node* statements) {
     if (!control || !statements) return;
@@ -552,4 +620,41 @@ int icg_if(AST_node* tree) {
     return 0;
 }
 
+void icg_proc(AST_node* tree) {
+    if (!tree) return;
 
+    if (tree->type != AST_PROC) return;
+    char* str = tree->value;
+
+    Symbol* symbol = icg_lookup_symbol(cg, str);
+    if (!symbol) return;
+
+    cg->curr_proc = proc_init(symbol->name, symbol->symbol_table);
+    if (!cg->curr_proc) return;
+
+    Type_info* type = symbol->type;
+
+    char* ret_type = map_type_qbe(type->data.function.ret_type);
+    int no_params = type->data.function.no_params;
+
+    char* params = "";
+
+    for (int i = 0; i < no_params; i++) {
+        char* partype = map_type_qbe(type->data.function.params[i]);
+        char* temp = new_temp();
+        if (!partype) return;
+        params = create_formatted_string("%s %s %s, ",
+                params, partype, temp);
+        icg_lookup_symbol(cg, type->data.function.params[i]->name);
+    }
+
+    cg->text = cb_append(cg->text, 
+            "function %s $%s (%s) {\n"
+            "@start\n", ret_type, str, params);
+
+    icg_statements(tree->right_child);
+
+    cg->text = cb_concat(cg->text, cg->curr_proc->buffer);
+    cg->text = cb_append(cg->text, "}\n");
+
+}
