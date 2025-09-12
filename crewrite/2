@@ -86,8 +86,7 @@ void icg_for(AST_node* control, AST_node* statements) {
             "%s\n", cond);
     char* res = icg_exp(control->left_child);
     cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
-            "   jnz %s, %s, %s\n"
-            "%s\n", res, body, end, body);
+            "jnz %s, %s, %s\n", res, );
 
     icg_statements(statements);
     
@@ -98,6 +97,7 @@ void icg_for(AST_node* control, AST_node* statements) {
     cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
             "   jmp %s\n"
             "%s\n", cond, end);
+
     
 }
 void icg_while(AST_node* control, AST_node* statements) {
@@ -121,22 +121,34 @@ void icg_while(AST_node* control, AST_node* statements) {
             "%s\n", forcontrol, forend);
     
 }
+void icg_for_control(AST_node* tree) {
+    if (!tree) return;
+
+    if (tree->type != AST_FOR_CONTROL) return;
+    tree = tree->left_child;
+
+    if (tree->type == AST_WHILE) {
+        char* control = icg_exp(tree->left_child);
+        char* forbody = new_label();
+        char* forelse = new_label();
+
+        cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
+                "   jnz %s, %s, %s\n"
+                "%s\n", control, forbody, ifelse, forbody);
+
+    } else if (tree->type == AST_FOR) {
+    }
+}
 
 int icg_loop(AST_node* tree) {
     if (!tree) return 0;
 
     if (tree->type != AST_FOR) return 0;
-    AST_node* control = tree->left_child;
-    AST_node* statements = tree->right_child;
 
     Table* tmp = cg->curr_scope;
     cg->curr_scope = tree->symbols;
 
-    if(control->type != AST_FOR_CONTROL) return 0;
-    control = control->left_child;
-    
-    if (control->type == AST_WHILE) icg_while(control, statements);
-    else if (control->type == AST_FOR) icg_for(control, statements);
+    icg_for_control(tree->left_child);
 
     cg->curr_scope = tmp; 
     return 1;
@@ -180,4 +192,5 @@ int icg_if(AST_node* tree) {
     }
     return 0;
 }
+
 
