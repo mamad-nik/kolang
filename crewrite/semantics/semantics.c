@@ -1249,4 +1249,3 @@ void semantics(AST_node* tree) {
     global_symbol_table = create_table();
     sem_program(tree);
 }
-    

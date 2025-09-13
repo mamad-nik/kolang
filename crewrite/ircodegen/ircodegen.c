@@ -4,7 +4,7 @@ CG* cg;
 
 //TODO
 char* icg_exp(AST_node* tree);
-char* icg_statements(AST_node* tree);
+int icg_statements(AST_node* tree);
 int icg_assignment(AST_node* tree);
 int icg_inc_dec(AST_node* tree);
 
@@ -620,6 +620,39 @@ int icg_if(AST_node* tree) {
     return 0;
 }
 
+int icg_assignment(AST_node* tree) {
+    if (!tree) return 0;
+
+    if (tree->type != AST_ASSIGN) return 0;
+    
+    if (tree->type == AST_VAR) {
+        char* rhs = icg_exp(tree->right_child);
+        char* lhs = icg_var_def(tree->left_child);
+        icg_set_var();
+    }
+}
+void icg_statement(AST_node* tree) {
+    if (!tree) return;
+
+    if (tree->type == AST_VAR) icg_var_def(tree);
+    if (tree->type == AST_ASSIGN) icg_assignment(tree);
+}
+int icg_statements(AST_node* tree) {
+    if (!tree) return 0;
+
+    if (tree->type != AST_STATEMENTS) return 0;
+
+    tree = tree->left_child;
+    while (tree) {
+        if (tree->type ==  AST_SEQ) { 
+            if (!tree->left_child) return 0;
+            icg_statement(tree->left_child);
+            tree = tree->right_child;
+        }
+    }
+    return 1;
+
+}
 void icg_proc(AST_node* tree) {
     if (!tree) return;
 
@@ -658,3 +691,38 @@ void icg_proc(AST_node* tree) {
     cg->text = cb_append(cg->text, "}\n");
 
 }
+void icg_procs(AST_node* tree) {
+    if (!tree) return;
+
+    while(tree) {
+        if (tree && tree->left_child) 
+            if(tree->type == AST_SEQ)
+                icg_proc(tree->left_child);
+        tree = tree->right_child;
+    }
+}
+void icg_combs(AST_node* tree) {
+    if (!tree) return; 
+
+    if (tree->type != AST_COMBS) return;
+
+    icg_procs(tree->right_child);
+}
+void icg_program(AST_node* tree) {
+    if (!tree) return; 
+
+    if (tree->type != AST_PROGRAM) return;
+    
+    if (!tree->right_child) return;
+    icg_combs(tree->right_child);
+}
+
+void icg(AST_node* tree, FILE* output, Table* gv) {
+    if (!tree || !output || !gv) return;
+
+    cg = cg_init(output, gv);
+    if (!cg) return;
+
+    icg_program(tree);
+}
+
