@@ -67,7 +67,6 @@ typedef struct {
 
 extern Type_registry* global_types;
 
-
 Type_registry* init_type_registry();
 void destroy_type_registry(Type_registry* registry);
 Type_registry* add_to_custom(Type_info* ti);

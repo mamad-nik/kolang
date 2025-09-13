@@ -1248,4 +1248,7 @@ void semantics(AST_node* tree) {
     if (!tree) return; 
     global_symbol_table = create_table();
     sem_program(tree);
+    for (int i = 0; i < global_types->no_custom; i++) {
+        print_type(global_types->custom_types[i]);
+    }
 }

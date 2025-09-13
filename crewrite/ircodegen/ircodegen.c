@@ -7,6 +7,7 @@ char* icg_exp(AST_node* tree);
 int icg_statements(AST_node* tree);
 int icg_assignment(AST_node* tree);
 int icg_inc_dec(AST_node* tree);
+char* curr_type; 
 
 char* new_label() {
     char* label = malloc(32);
@@ -136,6 +137,7 @@ char* icg_get_var(char* name) {
     if (!symbol) return NULL;
 
     char* type = map_type_qbe(symbol->type);
+    curr_type = type;
     char* temp = new_temp();
 
     cg->curr_proc->buffer = cb_append(cg->curr_proc->buffer, 
@@ -628,8 +630,9 @@ int icg_assignment(AST_node* tree) {
     if (tree->type == AST_VAR) {
         char* rhs = icg_exp(tree->right_child);
         char* lhs = icg_var_def(tree->left_child);
-        icg_set_var();
+        icg_set_var(lhs, rhs, curr_type);
     }
+    return 1;
 }
 void icg_statement(AST_node* tree) {
     if (!tree) return;
