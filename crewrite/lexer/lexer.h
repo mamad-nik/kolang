@@ -15,5 +15,5 @@
 extern Stream *stream;
 extern Table *symbol_table;
 
-extern int lex(char **input); 
+extern void lex(char **input); 
 #endif

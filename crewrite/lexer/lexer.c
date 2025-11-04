@@ -225,7 +225,7 @@ char* pattern_match(char*  str, Token* token) {
     return NULL;
 }
 
-int lex(char **input) {
+int lex_helper(char **input) {
     char *fptr = *input;
     char *sptr = fptr;
     char *kptr;
@@ -265,7 +265,7 @@ int lex(char **input) {
         if (sptr == NULL) {
             if(keyword_id == -1) {
                 *input = fptr;
-                return 0;
+                return -1;
             }
             free(patt_token);
             inst_token(fptr, kptr, token, keyword_id);
@@ -277,4 +277,23 @@ int lex(char **input) {
     }
     stream = finilize_stream(stream, fptr);
     return 1;
+}
+void lex(char **input) {
+    int lex_code = lex_helper(input);
+    switch(lex_code) {
+        case 1:
+            return;
+            break;
+        case 0:
+            fprintf(stderr, "an allocation error occured, please rerun the compiler.\n");
+            exit(1);
+            break;
+        case -1:
+            fprintf(stderr, "a lexing error occured, there is an invalid token on %d.\n", line_no);
+            exit(1);
+            break;
+        default:
+            break;
+    }
+    return;
 }

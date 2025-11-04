@@ -8,7 +8,6 @@
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "semantics/semantics.h"
-#include "codegen/codegen.h"
 
 FILE* create_file(char* name) {
     FILE* file = fopen(name, "w+");
