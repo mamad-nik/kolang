@@ -6,13 +6,6 @@
 #include <stdlib.h>
 
 
-typedef enum {
-    SCOPE_GLOBAL,
-    SCOPE_LOCAL,
-    SCOPE_PARAMETER,
-    SCOPE_TEMPORARY
-} Symbol_scope;
-
 typedef struct {
     char* name;
     char* loc;
@@ -22,7 +15,7 @@ typedef struct {
     int line_no;
     void* value;
 
-    Symbol_scope scope;
+    int scope;
     int stack_offset;
     int size_bytes;
     int is_initialized;
@@ -35,6 +28,6 @@ typedef struct {
     int array_size;
 } Symbol;
 
-Symbol *create_symbol(char* name, Type_info* type, Symbol_scope scope);
+Symbol *create_symbol(char* name, Type_info* type, int scope);
 
 #endif

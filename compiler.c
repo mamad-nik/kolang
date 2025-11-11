@@ -71,7 +71,15 @@ char* read_all(int file) {
         read_size += n;
     }
 
-    buffer[read_size] = '\0'; // safe even for binary: adds trailing 0
+    buffer[read_size] = '\0'; 
+
+    //get rid of the trailing white space in the src file
+    int wscounter = 0;
+    for (int i = read_size -1; i > 0; i--)
+        if (buffer[i] == ' ' || buffer[i] == '\n' || buffer[i] == '\t') wscounter++;
+        else break;
+    buffer[read_size - wscounter] = '\0';
+
     return buffer;
 }
 
@@ -112,6 +120,7 @@ int print_table(Table* table) {
 int main(int argc, char *argv[]) {
     if (argc < 2) return 1;
     int fd = open_src(argv[1]);
+    if (fd == -1) return 1;
     char* string = read_all(fd);
     lex(&string);
     print_stream(stream);

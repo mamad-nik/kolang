@@ -1,6 +1,6 @@
 #include"symbol_table.h"
 
-Symbol *create_symbol(char* name, Type_info* type, Symbol_scope scope) {
+Symbol *create_symbol(char* name, Type_info* type, int scope) {
     if (!name || !type) return NULL;
 
     Symbol* sym = malloc(sizeof(Symbol));

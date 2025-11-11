@@ -7,7 +7,9 @@
 #include"../ast/ast.h"
 #include"../type_system/type_system.h"
 #include"../symbol_table/symbol_table.h"
-#include "../table/table.h"
+#include"../table/table.h"
+#include"../scope/scope.h"
+
 
 extern Table* global_symbol_table;
 void semantics(AST_node* tree); 

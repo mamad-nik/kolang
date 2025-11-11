@@ -3,8 +3,7 @@
 typedef struct {
     char* name;
     Symbol* gt_entry_symbol;
-    Table* st;
-    Table* inner_scope;
+    Scope* scope;
 } Cproc;
 
 Type_info* sem_func_call(AST_node* tree);
@@ -26,8 +25,9 @@ int sem_for(AST_node* tree);
 int sem_ret(AST_node* tree);
 
 Cproc* current_proc;
-Symbol_scope scope; 
-Table* global_symbol_table;
+int scope = 0; 
+Scope* global_scope;
+Table* global_symbol_table; 
 
 int type_compat(Type_info* type, Basic_type basic) {
     if (!type) return 0;
@@ -56,16 +56,20 @@ Cproc* create_cproc(char* name) {
     Table* table = create_table();
     if (!table) return NULL;
 
+    Scope* scope = create_scope(table, global_scope);
+    if (!scope) return NULL;
+
     Cproc* p = malloc(sizeof(Cproc));
     if (!p) {
         free(table);
+        free(scope);
         return NULL;
     }
 
     *p = (Cproc) {
         .name = strdup(name),
         .gt_entry_symbol = NULL,
-        .st = table,
+        .scope = scope,
     };
     return p;
 }
@@ -78,42 +82,30 @@ int switch_op(AST_type op)  {
     return 0;
 }
 
-Table* set_table() {
-    if (scope == SCOPE_TEMPORARY) {
-        if (!current_proc->inner_scope) return NULL;
-        return current_proc->inner_scope; 
-    }
-    if (scope == SCOPE_LOCAL) return current_proc->st; 
-    return NULL;
-}
-
-
 Symbol* check_for_a_symbol(char* str) { 
     if (!str) return NULL;
 
     Entry* entry = NULL;
-    if (current_proc->inner_scope) {
-        entry = lookup_entry(current_proc->inner_scope, str);
+    if (!current_proc) {
+        entry = lookup_entry(global_scope->symbol_table, str);
         if (entry) {
             Symbol* symbol = (Symbol *) entry->value;
             return symbol;
-        }
+        } else sem_panic("unknown error (i guessed there could be an error here but it was too late in the night to figure out how)");
+    } else {
+        if (!current_proc->scope || !current_proc->scope->symbol_table) sem_panic("yet another unknown error");
+        Scope* inn_scope = current_proc->scope;
+        do {
+            entry = lookup_entry(inn_scope->symbol_table, str);
+            if (entry) {
+                Symbol* symbol = (Symbol *) entry->value;
+                return symbol;
+            }
+            inn_scope = inn_scope->parent_scope;
+        } while(inn_scope);
     }
-
-    entry = lookup_entry(current_proc->st, str);
-    if (entry) {
-        Symbol* symbol = (Symbol *) entry->value;
-        return symbol;
-    }
-    entry = lookup_entry(global_symbol_table, str);
-    if (entry) {
-        Symbol* symbol = (Symbol *) entry->value;
-        return symbol;
-    }
-
     return NULL;
 }
-
    
 int switch_ast_type(AST_type id) {
     if (id == AST_INT || id == AST_BOOL || id == AST_STRING
@@ -326,12 +318,12 @@ void sem_gvar_def(AST_node* tree) {
     char* str  = tree->left_child->value;
     Type_info* type = sem_argument(tree); 
 
-    Entry* entry = lookup_entry(global_symbol_table, str);
+    Entry* entry = lookup_entry(global_scope->symbol_table, str);
     if (entry) {
         sem_panic("redifenition of an existing variable");
     }
     Symbol *symbol = create_symbol(str, type, scope);
-    insert_entry(global_symbol_table, str, symbol);
+    insert_entry(global_scope->symbol_table, str, symbol);
     return;
 }
 
@@ -595,7 +587,7 @@ Type_info* sem_exp(AST_node* tree) {
 }
 void sem_top_def(AST_node* tree) {
     if (!tree) return;
-    scope = SCOPE_GLOBAL;
+    scope = 0;
     
     if (tree->type != AST_TOP_DEF) return;
     tree = tree->left_child;
@@ -648,69 +640,6 @@ int traverse_params(AST_node* tree) {
     return nparams;
 }
 
-Type_info** sem_proc_inp(AST_node* tree, int nparams) {
-    if (!tree) return NULL;
-            
-    Type_info** params = calloc(nparams, sizeof(Type_info *));
-    if (!params) sem_panic_allocation();
-
-    for (int i = 0; i < nparams; i++) {
-        if (tree) {
-            if (tree->type == AST_SEQ) {
-                if (tree->left_child) {
-                    Type_info* param = sem_argument(tree->left_child);
-                    if (!param) {
-                        free(params);
-                        sem_panic("invalid argument in procedure definition");
-                    }
-                    params[i] = param;
-                    Symbol *symbol = create_symbol(param->name, param, scope);
-                    if(!insert_entry(current_proc->st, param->name, symbol)){
-                        free(params);
-                        sem_panic_allocation();
-                    }
-                }
-                tree = tree->right_child;
-            }
-        }
-    }
-    return params;
-}
-
-Type_info* sem_proc_inp_out(AST_node* tree) {
-    if (!tree) return NULL;
-
-    if (tree->type != AST_PROC_INPUT_OUTPUT) return NULL;
-    int nparams = 0;
-    scope = SCOPE_PARAMETER;
-    Type_info** params = NULL;
-    if (tree->left_child) {
-        nparams = traverse_params(tree->left_child);
-        params = sem_proc_inp(tree->left_child, nparams);
-        if (!params) sem_panic("invalid procedure input");
-    }
-
-    Type_info* output = sem_proc_out(tree->right_child);
-    if (!output) { 
-        for (int i = 0; i < nparams; i++) {
-            free(params[i]);
-        }
-        free(params);
-        sem_panic("invalid procedure output");
-    }
-
-    Type_info* proc = create_func_type(current_proc->name, output, params, nparams);
-    if (!proc) { 
-        free(output);
-        for (int i = 0; i < nparams; i++) {
-            free(params[i]);
-        }
-        free(params);
-        sem_panic_allocation();
-    }
-
-    return proc;
-}
 
 Type_info* sem_place(AST_node* tree) {
     if (!tree) return NULL;
@@ -766,7 +695,7 @@ int sem_statement(AST_node* tree) {
     if (sem_array_def(tree)) return 1;
     Symbol* symbol = sem_var_def(tree); 
     if (symbol) {
-        Table* table = set_table();
+        Table* table = current_proc->scope->symbol_table;
         if (!table) sem_panic("scoping error");
         return insert_entry(table, symbol->name, symbol);
     }
@@ -795,6 +724,68 @@ int sem_statements(AST_node* tree) {
     return 1;
 }
 
+Type_info** sem_proc_inp(AST_node* tree, int nparams) {
+    if (!tree) return NULL;
+            
+    Type_info** params = calloc(nparams, sizeof(Type_info *));
+    if (!params) sem_panic_allocation();
+
+    for (int i = 0; i < nparams; i++) {
+        if (tree) {
+            if (tree->type == AST_SEQ) {
+                if (tree->left_child) {
+                    Type_info* param = sem_argument(tree->left_child);
+                    if (!param) {
+                        free(params);
+                        sem_panic("invalid argument in procedure definition");
+                    }
+                    params[i] = param;
+                    Symbol *symbol = create_symbol(param->name, param, scope);
+                    if(!insert_entry(current_proc->scope->symbol_table, param->name, symbol)){
+                        free(params);
+                        sem_panic_allocation();
+                    }
+                }
+                tree = tree->right_child;
+            }
+        }
+    }
+    return params;
+}
+
+Type_info* sem_proc_inp_out(AST_node* tree) {
+    if (!tree) return NULL;
+
+    if (tree->type != AST_PROC_INPUT_OUTPUT) return NULL;
+    int nparams = 0;
+    Type_info** params = NULL;
+    if (tree->left_child) {
+        nparams = traverse_params(tree->left_child);
+        params = sem_proc_inp(tree->left_child, nparams);
+        if (!params) sem_panic("invalid procedure input");
+    }
+
+    Type_info* output = sem_proc_out(tree->right_child);
+    if (!output) { 
+        for (int i = 0; i < nparams; i++) {
+            free(params[i]);
+        }
+        free(params);
+        sem_panic("invalid procedure output");
+    }
+
+    Type_info* proc = create_func_type(current_proc->name, output, params, nparams);
+    if (!proc) { 
+        free(output);
+        for (int i = 0; i < nparams; i++) {
+            free(params[i]);
+        }
+        free(params);
+        sem_panic_allocation();
+    }
+
+    return proc;
+}
 void sem_proc(AST_node* tree) {
     if (!tree) return;
 
@@ -807,23 +798,22 @@ void sem_proc(AST_node* tree) {
     AST_node* statements = tree->right_child;
     AST_node* head = tree->left_child;
 
+    scope = 1;
     Type_info* proc = sem_proc_inp_out(head);
     if (!proc) return;
     
-    scope = SCOPE_GLOBAL;
-    Symbol* symbol = create_symbol(str, proc, scope); 
+    Symbol* symbol = create_symbol(str, proc, 0); 
     if (!symbol) sem_panic_allocation();
     current_proc->gt_entry_symbol = symbol;
 
-    scope = SCOPE_LOCAL;
     if (!sem_statements(statements)) sem_panic("invalid statements");
 
     symbol->is_func = 1;
     symbol->param_count = proc->data.function.no_params;
-    symbol->symbol_table = current_proc->st;
+    symbol->symbol_table = current_proc->scope->symbol_table;
     symbol->local_stack_size = 0;
 
-    if(!insert_entry(global_symbol_table, str, symbol)) sem_panic_allocation();
+    if(!insert_entry(global_scope->symbol_table, str, symbol)) sem_panic_allocation();
 }
 void sem_procs(AST_node* tree) {
     if (!tree) return;
@@ -850,7 +840,7 @@ Symbol* sem_var_def(AST_node* tree) {
 
     symbol = create_symbol(str, type, scope);
     if (!symbol) sem_panic_allocation();
-    Table* table = set_table();
+    Table* table = current_proc->scope->symbol_table;
     if (!table) sem_panic("scoping error");
     if (!insert_entry(table, str, symbol)) sem_panic_parser_error();
     return symbol;
@@ -964,7 +954,7 @@ int sem_if(AST_node* tree) {
     if (!tree) return 0;
 
     if (tree->type == AST_IF_ELSE) {
-        scope = SCOPE_TEMPORARY;
+        scope++;
         if (!tree->left_child || !tree->right_child) sem_panic_parser_error();
         if (!sem_if(tree->left_child)) sem_panic("invalid if statement");
         if (!sem_if(tree->right_child)) sem_panic("invalid if statement");
@@ -980,14 +970,19 @@ int sem_if(AST_node* tree) {
            
         Table* table = create_table();
         if (!table) sem_panic_allocation();
-        Table* outer_table = current_proc->inner_scope;
-        current_proc->inner_scope = table;
+
+        Scope* inner_scope = create_scope(table, current_proc->scope);
+        if (!inner_scope) sem_panic_allocation();
+        current_proc->scope = inner_scope;
+        scope++;
 
         if (!tree->right_child) sem_panic_parser_error();
         if (!sem_statements(tree->right_child)) sem_panic("invalid statement in if body");
 
-        current_proc->inner_scope = outer_table;
+        current_proc->scope = inner_scope->parent_scope;
+        destroy_scope(inner_scope);
         tree->symbols = table;
+        scope--;
 
         return 1;
     } else if (tree->type == AST_ELSE) {
@@ -995,12 +990,16 @@ int sem_if(AST_node* tree) {
 
         Table* table = create_table();
         if (!table) sem_panic_allocation();
-        Table* outer_table = current_proc->inner_scope;
-        current_proc->inner_scope = table;
+        Scope* inner_scope = create_scope(table, current_proc->scope);
+        if (!inner_scope) sem_panic_allocation();
+        current_proc->scope = inner_scope;
+        scope++;
 
         if (!sem_statements(tree->left_child)) sem_panic("invalid statement in else body");
-        current_proc->inner_scope = outer_table;
+        current_proc->scope = inner_scope->parent_scope;
+        destroy_scope(inner_scope);
         tree->symbols = table;
+        scope--;
         return 1;
     }
     return 0;
@@ -1087,15 +1086,20 @@ int sem_for(AST_node* tree) {
 
     Table* table = create_table();
     if (!table) sem_panic_allocation();
-    Table* outer_table = current_proc->inner_scope;
-    current_proc->inner_scope = table;
+    Scope* inner_scope = create_scope(table, current_proc->scope);
+    if (!inner_scope) sem_panic_allocation();
+    current_proc->scope = inner_scope;
+    scope++;
+
 
     int control = sem_for_control(tree->left_child);
     
     int statements =  sem_statements(tree->right_child);
     
-    tree->symbols = table; 
-    current_proc->inner_scope = outer_table;
+    current_proc->scope = inner_scope->parent_scope;
+    destroy_scope(inner_scope);
+    tree->symbols = table;
+    scope--;
     return 1;
 }
 
@@ -1173,7 +1177,7 @@ Type_info* sem_array_def(AST_node* tree) {
     Symbol* symbol = create_symbol(str, array, scope);
     if (!symbol) sem_panic_parser_error();
 
-    Table* table = set_table();
+    Table* table = current_proc->scope->symbol_table;
     if (!table) sem_panic("scoping error");
     if (!insert_entry(table, str, symbol)) sem_panic_allocation();
 
@@ -1247,6 +1251,8 @@ void print_type(Type_info* ti) {
 void semantics(AST_node* tree) {
     if (!tree) return; 
     global_symbol_table = create_table();
+    if (!global_symbol_table) return;
+    global_scope = create_scope(global_symbol_table, NULL);
     sem_program(tree);
     for (int i = 0; i < global_types->no_custom; i++) {
         print_type(global_types->custom_types[i]);
